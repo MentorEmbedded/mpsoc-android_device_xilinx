@@ -1,0 +1,7 @@
+#
+/dev/ttyS*                0666   system     system
+/proc                     0666   system     system
+/dev/mali                 0666   system     graphics
+/dev/ion                  0666   system     graphics
+/dev/graphics/fb0         0666   system     graphics
+/dev/rfkill               0666   wifi       system
