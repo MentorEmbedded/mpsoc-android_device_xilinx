@@ -16,7 +16,7 @@
 
 # Inherit device specific configurations
 $(call inherit-product, device/xilinx/zcu106/device-common.mk)
-$(call inherit-product, device/xilinx/zcu106/zcu106/device-iocc.mk)
+$(call inherit-product, device/xilinx/zcu106/zcu106/device-zcu106.mk)
 
 # Inherit full base product
 $(call inherit-product, $(SRC_TARGET_DIR)/product/full_base.mk)
