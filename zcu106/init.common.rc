@@ -42,12 +42,3 @@ on post-fs
     # limit system background services to use 2 cores
     write /dev/cpuset/system-background/cpus 0-1
 
-service dhcpcd_eth0 /system/bin/dhcpcd -ABKL
-    class main
-    disabled
-    oneshot
-
-service iprenew_eth0 /system/bin/dhcpcd -n
-    class main
-    disabled
-    oneshot
