@@ -26,9 +26,13 @@ on post-fs
     # Set supported opengles version - OpenGLES 2
     setprop ro.opengles.version 131072
 
+on property:sys.boot_completed=1
     # update cpuset now that processors are up
     # Foreground should contain all cores
     write /dev/cpuset/foreground/cpus 0-3
+
+    # top-app gets all cpus
+    write /dev/cpuset/top-app/cpus 0-3
 
     # Add foreground/boost cpuset, it is used for app launches,
     # and maybe other high priority tasks in the future.
