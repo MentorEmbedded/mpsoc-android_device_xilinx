@@ -34,7 +34,7 @@ PRODUCT_MODEL := AOSP on ZynqMP ZCU102
 PRODUCT_MANUFACTURER := Xilinx
 
 # Specify variables for kernel build
-KERNEL_SRC_DIR ?= linux-xlnx
+KERNEL_SRC_DIR ?= $(ANDROID_BUILD_TOP)/linux-xlnx
 KERNEL_CFG_NAME ?= xilinx_zynqmp_android_defconfig
 KERNEL_DTS_NAMES ?= \
 	zynqmp-zcu102-rev1.0.dts

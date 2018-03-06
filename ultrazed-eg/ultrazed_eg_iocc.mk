@@ -32,7 +32,7 @@ PRODUCT_MODEL := AOSP on Avnet UltraZed-EG with IO Carrier Card
 PRODUCT_MANUFACTURER := Avnet
 
 # Specify variables for kernel build
-KERNEL_SRC_DIR ?= linux-xlnx
+KERNEL_SRC_DIR ?= $(ANDROID_BUILD_TOP)/linux-xlnx
 KERNEL_CFG_NAME ?= xilinx_zynqmp_android_defconfig
 KERNEL_DTS_NAMES ?= \
 	zynqmp-ultrazed-eg-iocc.dts
