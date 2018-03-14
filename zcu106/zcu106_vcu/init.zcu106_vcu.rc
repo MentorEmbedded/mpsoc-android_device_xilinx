@@ -1,0 +1,54 @@
+import init.${ro.hardware}.usb.rc
+
+on init
+    # mount debugfs
+    mount debugfs /sys/kernel/debug /sys/kernel/debug
+
+on fs
+    mount_all /fstab.zcu106
+    setprop ro.crypto.fuse_sdcard false
+
+on post-fs-data
+    mkdir /data/media 0770 media_rw media_rw
+
+on post-fs
+    # For legacy support
+    # See storage config details at http://source.android.com/tech/storage/
+    # since /storage is mounted on post-fs in init.rc
+    symlink /sdcard /storage/sdcard0
+
+    # fake some battery state
+    setprop status.battery.state Slow
+    setprop status.battery.level 5
+    setprop status.battery.level_raw  50
+    setprop status.battery.level_scale 9
+
+    # Set supported opengles version - OpenGLES 2
+    setprop ro.opengles.version 131072
+    
+    # Initialize VCU
+    insmod /system/vendor/modules/allegro.ko
+    insmod /system/vendor/modules/al5e.ko
+    insmod /system/vendor/modules/al5d.ko
+    insmod /system/vendor/modules/xlnx_vcu.ko
+
+on property:sys.boot_completed=1
+    # update cpuset now that processors are up
+    # Foreground should contain all cores
+    write /dev/cpuset/foreground/cpus 0-3
+
+    # top-app gets all cpus
+    write /dev/cpuset/top-app/cpus 0-3
+
+    # Add foreground/boost cpuset, it is used for app launches,
+    # and maybe other high priority tasks in the future.
+    # It's to be set to whatever cores should be used
+    # for short term high-priority tasks.
+    write /dev/cpuset/foreground/boost/cpus 0-3
+
+    # background contains a small subset (generally one core)
+    write /dev/cpuset/background/cpus 0
+
+    # limit system background services to use 2 cores
+    write /dev/cpuset/system-background/cpus 0-1
+

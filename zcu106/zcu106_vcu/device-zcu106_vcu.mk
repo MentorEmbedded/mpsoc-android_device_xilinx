@@ -17,9 +17,9 @@
 # Copy basic config files
 PRODUCT_COPY_FILES += \
     device/xilinx/zcu106/fstab.common:root/fstab.zcu106 \
-    device/xilinx/zcu106/init.common.rc:root/init.zcu106.rc \
+    device/xilinx/zcu106/zcu106_vcu/init.zcu106_vcu.rc:root/init.zcu106.rc \
     device/xilinx/zcu106/init.common.usb.rc:root/init.zcu106.usb.rc \
-    device/xilinx/zcu106/ueventd.common.rc:root/ueventd.zcu106.rc
+    device/xilinx/zcu106/zcu106_vcu/ueventd.zcu106_vcu.rc:root/ueventd.zcu106.rc
 
 # Copy VCU firmware
 PRODUCT_COPY_FILES += \
