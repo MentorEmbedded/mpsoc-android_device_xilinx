@@ -38,12 +38,6 @@ PRODUCT_COPY_FILES +=  \
     frameworks/native/data/etc/android.hardware.usb.accessory.xml:system/etc/permissions/android.hardware.usb.accessory.xml \
     frameworks/native/data/etc/android.hardware.usb.host.xml:system/etc/permissions/android.hardware.usb.host.xml
 
-# Copy media codec settings
-PRODUCT_COPY_FILES +=  \
-    frameworks/av/media/libstagefright/data/media_codecs_google_audio.xml:system/etc/media_codecs_google_audio.xml \
-    frameworks/av/media/libstagefright/data/media_codecs_google_video.xml:system/etc/media_codecs_google_video.xml \
-    device/xilinx/common/media_codecs.xml:system/etc/media_codecs.xml
-
 # Add libion for graphics
 PRODUCT_PACKAGES += \
 	libion

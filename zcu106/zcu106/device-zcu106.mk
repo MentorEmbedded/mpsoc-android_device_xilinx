@@ -25,6 +25,12 @@ PRODUCT_COPY_FILES += \
 PRODUCT_COPY_FILES += \
    $(LOCAL_PATH)/uEnv.txt:boot/uEnv.txt
 
+# Copy media codec settings
+PRODUCT_COPY_FILES +=  \
+    frameworks/av/media/libstagefright/data/media_codecs_google_audio.xml:system/etc/media_codecs_google_audio.xml \
+    frameworks/av/media/libstagefright/data/media_codecs_google_video.xml:system/etc/media_codecs_google_video.xml \
+    device/xilinx/common/media_codecs.xml:system/etc/media_codecs.xml
+
 # Copy prebuilt BOOT.BIN if it exists
 PRODUCT_COPY_FILES += $(call add-to-product-copy-files-if-exists,\
 	$(LOCAL_PATH)/BOOT.BIN:boot/BOOT.BIN)
