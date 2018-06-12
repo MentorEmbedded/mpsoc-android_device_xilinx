@@ -2,7 +2,7 @@ import init.${ro.hardware}.usb.rc
 
 on init
     # mount debugfs
-    mount debugfs /sys/kernel/debug /sys/kernel/debug
+    mount debugfs /sys/kernel/debug /sys/kernel/debug mode=755
 
 on fs
     mount_all /fstab.zcu106
@@ -39,6 +39,9 @@ on post-fs
     insmod /system/vendor/modules/allegro.ko
     insmod /system/vendor/modules/al5e.ko
     insmod /system/vendor/modules/al5d.ko
+
+    chown graphics graphics /sys/kernel/debug/sync/sw_sync
+    chmod 777 /sys/kernel/debug/sync/sw_sync
 
 on property:sys.boot_completed=1
     # update cpuset now that processors are up
