@@ -61,4 +61,4 @@ PRODUCT_PACKAGES += \
 
 # Install required kernel modules
 KERNEL_MODULES += \
-    drivers/misc/xlnx_vcu.ko
+    drivers/soc/xilinx/xlnx_vcu.ko
