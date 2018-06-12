@@ -62,3 +62,7 @@ PRODUCT_PACKAGES += \
 # Install required kernel modules
 KERNEL_MODULES += \
     drivers/soc/xilinx/xlnx_vcu.ko
+
+# Default OMX service to non-Treble
+PRODUCT_PROPERTY_OVERRIDES += \
+    persist.media.treble_omx=false
