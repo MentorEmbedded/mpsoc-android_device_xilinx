@@ -14,3 +14,5 @@
 
 add_lunch_combo zcu106-userdebug
 add_lunch_combo zcu106-eng
+add_lunch_combo zcu106_vcu-userdebug
+add_lunch_combo zcu106_vcu-eng
