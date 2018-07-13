@@ -40,6 +40,16 @@ on post-fs
     insmod /system/vendor/modules/al5e.ko
     insmod /system/vendor/modules/al5d.ko
 
+    # Initialize HDMI
+    insmod /system/vendor/modules/dp159.ko
+    insmod /system/vendor/modules/si5324.ko
+    insmod /system/vendor/modules/xilinx-vphy.ko
+    insmod /system/vendor/modules/xilinx-hdmi-tx.ko
+    insmod /system/vendor/modules/xilinx-hdmi-rx.ko
+
+    # set DRM device to HDMI
+    setprop hwc.drm.device /dev/dri/card1
+
     chown graphics graphics /sys/kernel/debug/sync/sw_sync
     chmod 777 /sys/kernel/debug/sync/sw_sync
 

@@ -1,4 +1,4 @@
-bootargs=init=/init androidboot.selinux=permissive androidboot.hardware=zcu106 console=ttyPS0,115200 firmware_class.path=/system/etc/firmware cma=1500M clk_ignore_unused uio_pdrv_genirq.of_id=generic-uio"
+bootargs=init=/init androidboot.selinux=permissive androidboot.hardware=zcu106 console=ttyPS0,115200 firmware_class.path=/system/etc/firmware cma=1700M clk_ignore_unused uio_pdrv_genirq.of_id=generic-uio"
 dtb_name=zynqmp-zcu106-revA-vcu.dtb
 uramdisk_addr=0x10000000
 load_kernel=load mmc $sdbootdev:$partid $kernel_addr Image

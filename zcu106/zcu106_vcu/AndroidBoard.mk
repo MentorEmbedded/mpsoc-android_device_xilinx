@@ -24,6 +24,11 @@ include device/xilinx/common/build/kernel.mk
 # kernel build variables
 include device/xilinx/common/build/vcu_modules.mk
 
+# include makefile for Xilinx HDMI kernel modules
+# it should be after kernel.mk since it uses some
+# kernel build variables
+include device/xilinx/common/build/hdmi_modules.mk
+
 # include makefile for Xilinx U-Boot
 # variables for U-Boot build should be set in
 # product makefile
