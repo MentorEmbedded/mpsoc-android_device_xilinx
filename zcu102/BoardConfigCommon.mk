@@ -57,6 +57,9 @@ TARGET_USERIMAGES_SPARSE_EXT_DISABLED := true
 BOARD_SEPOLICY_DIRS := device/xilinx/common/sepolicy
 BOARD_SEPOLICY_DIRS += device/xilinx/zcu102/sepolicy
 
+DEVICE_MANIFEST_FILE := device/xilinx/zcu102/manifest.xml
+DEVICE_MATRIX_FILE := device/xilinx/zcu102/compatibility_matrix.xml
+
 ifeq ($(HOST_OS),linux)
     ifeq ($(WITH_DEXPREOPT),)
       WITH_DEXPREOPT := true

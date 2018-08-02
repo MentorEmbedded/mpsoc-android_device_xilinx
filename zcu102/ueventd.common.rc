@@ -5,3 +5,4 @@
 /dev/ion                  0666   system     graphics
 /dev/graphics/fb0         0666   system     graphics
 /dev/rfkill               0666   wifi       system
+/dev/sw_sync              0666   system     graphics

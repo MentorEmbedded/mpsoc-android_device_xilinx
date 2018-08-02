@@ -16,5 +16,5 @@
 # limitations under the License.
 #
 
-# PRODUCT_MAKEFILES := \
-# 	$(LOCAL_DIR)/zcu102.mk
+PRODUCT_MAKEFILES := \
+	$(LOCAL_DIR)/zcu102.mk
