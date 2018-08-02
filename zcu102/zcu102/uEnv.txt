@@ -1,6 +1,8 @@
 bootargs=init=/init video=DP-1:1920x1080 androidboot.selinux=permissive androidboot.hardware=zcu102 console=ttyPS0,115200 firmware_class.path=/system/etc/firmware clk_ignore_unused cma=1024M
 dtb_name=zynqmp-zcu102-rev1.0.dtb
 uramdisk_addr=0x10000000
+fdt_addr=4000000
+kernel_addr=0x200000
 load_kernel=load mmc $sdbootdev:$partid $kernel_addr Image
 load_dtb=load mmc $sdbootdev:$partid $fdt_addr $dtb_name
 load_uramdisk=load mmc $sdbootdev:$partid $uramdisk_addr uramdisk.img
