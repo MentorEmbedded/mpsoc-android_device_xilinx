@@ -28,6 +28,10 @@ PRODUCT_COPY_FILES += \
     hardware/xilinx/vcu/vcu-firmware/1.0.0/lib/firmware/al5e.fw:system/etc/firmware/al5e.fw \
     hardware/xilinx/vcu/vcu-firmware/1.0.0/lib/firmware/al5e_b.fw:system/etc/firmware/al5e_b.fw
 
+# Copy HDMI RX EDID firmware
+PRODUCT_COPY_FILES += \
+	device/xilinx/zcu106/zcu106_vcu/xilinx-hdmi-rx-edid.bin:system/etc/firmware/xilinx/xilinx-hdmi-rx-edid.bin \
+
 # Copy media_codec config
 PRODUCT_COPY_FILES += \
     frameworks/av/media/libstagefright/data/media_codecs_google_audio.xml:system/etc/media_codecs_google_audio.xml \
