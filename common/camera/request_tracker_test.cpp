@@ -38,8 +38,7 @@ class RequestTrackerTest : public Test {
     camera3_stream_configuration_t config{
         static_cast<uint32_t>(streams_.size()),
         streams_.data(),
-        0,
-        nullptr};
+        0};
     dut_->SetStreamConfiguration(config);
   }
 

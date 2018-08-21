@@ -16,9 +16,8 @@
 
 LOCAL_PATH := $(call my-dir)
 
-# Prevent the HAL from building on devices not specifically
-# requesting to use it.
-ifeq ($(USE_CAMERA_V4L2_HAL), true)
+# Include only for ZynqMP platforms
+ifneq ($(filter zynqmp%, $(TARGET_BOARD_PLATFORM)),)
 
 v4l2_shared_libs := \
   libbase \
@@ -87,7 +86,7 @@ v4l2_test_files := \
 # V4L2 Camera HAL.
 # ==============================================================================
 include $(CLEAR_VARS)
-LOCAL_MODULE := camera.v4l2
+LOCAL_MODULE := camera.zynqmp
 LOCAL_MODULE_RELATIVE_PATH := hw
 LOCAL_CFLAGS += $(v4l2_cflags)
 LOCAL_SHARED_LIBRARIES := $(v4l2_shared_libs)
@@ -102,7 +101,7 @@ include $(BUILD_SHARED_LIBRARY)
 # Unit tests for V4L2 Camera HAL.
 # ==============================================================================
 include $(CLEAR_VARS)
-LOCAL_MODULE := camera.v4l2_test
+LOCAL_MODULE := camera.zynqmp_test
 LOCAL_CFLAGS += $(v4l2_cflags)
 LOCAL_SHARED_LIBRARIES := $(v4l2_shared_libs)
 LOCAL_STATIC_LIBRARIES := \
@@ -117,4 +116,4 @@ LOCAL_SRC_FILES := \
 
 include $(BUILD_NATIVE_TEST)
 
-endif # USE_CAMERA_V4L2_HAL
+endif # TARGET_BOARD_PLATFORM
