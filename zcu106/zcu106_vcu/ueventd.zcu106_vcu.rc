@@ -7,3 +7,6 @@
 /dev/rfkill               0666   wifi       system
 /dev/allegroIP            0666   media      mediacodec
 /dev/allegroDecodeIP      0666   media      mediacodec
+/dev/video*               0666   system     camera
+/dev/media*               0666   system     camera
+/dev/v4l-subdev*          0666   system     camera
