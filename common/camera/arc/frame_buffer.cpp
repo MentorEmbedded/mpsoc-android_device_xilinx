@@ -185,4 +185,88 @@ int GrallocFrameBuffer::Unmap() {
   return 0;
 }
 
+V4L2MmapedFrameBuffer::V4L2MmapedFrameBuffer()
+    : offset_(0), dev_fd_(-1), is_mapped_(false) {}
+
+V4L2MmapedFrameBuffer::~V4L2MmapedFrameBuffer() {
+  if (Unmap()) {
+    LOGF(ERROR) << "Unmap failed";
+  }
+}
+
+int V4L2MmapedFrameBuffer::Map() {
+  base::AutoLock l(lock_);
+  if (is_mapped_) {
+    LOGF(ERROR) << "The buffer is already mapped";
+    return -EINVAL;
+  }
+  if (dev_fd_ < 0){
+    LOGF(ERROR) << "V4L2 device descriptor is not set";
+    return -EINVAL;
+  }
+
+  void* addr = mmap(NULL, buffer_size_, PROT_READ, MAP_SHARED, dev_fd_, offset_);
+  if (addr == MAP_FAILED) {
+    LOGF(ERROR) << "mmap() failed: " << strerror(errno);
+    return -EINVAL;
+  }
+  data_ = static_cast<uint8_t*>(addr);
+  is_mapped_ = true;
+  return 0;
+}
+
+int V4L2MmapedFrameBuffer::SetDataSize(size_t size) {
+  base::AutoLock l(lock_);
+  if (is_mapped_){
+    LOGF(ERROR) << "The buffer is already mapped. Cannot set size";
+    return -EINVAL;
+  }
+  buffer_size_ = size;
+  data_size_ = size;
+  return 0;
+}
+
+int V4L2MmapedFrameBuffer::Unmap() {
+  base::AutoLock l(lock_);
+  if (is_mapped_ && munmap(data_, buffer_size_)) {
+    LOGF(ERROR) << "mummap() failed: " << strerror(errno);
+    return -EINVAL;
+  }
+  is_mapped_ = false;
+  dev_fd_ = -1;
+  LOGF(INFO) << "Unmapped";
+  return 0;
+}
+
+int V4L2MmapedFrameBuffer::SetOffset(uint32_t offset){
+  base::AutoLock l(lock_);
+  if (is_mapped_){
+    LOGF(ERROR) << "The buffer is already mapped. Cannot set offset";
+    return -EINVAL;
+  }
+  offset_ = offset;
+  return 0;
+}
+
+int V4L2MmapedFrameBuffer::SetFd(int fd){
+  base::AutoLock l(lock_);
+  if (is_mapped_){
+    LOGF(ERROR) << "The buffer is already mapped. Cannot set V4L2 FD";
+    return -EINVAL;
+  }
+  if (fd < 0){
+    LOGF(ERROR) << "Bad V4L2 FD: " << fd;
+    return -EINVAL;
+  }
+  dev_fd_ = fd;
+  return 0;
+}
+
+void V4L2MmapedFrameBuffer::Reset() {
+  base::AutoLock l(lock_);
+  if(is_mapped_){
+    Unmap();
+  }
+}
+
 }  // namespace arc

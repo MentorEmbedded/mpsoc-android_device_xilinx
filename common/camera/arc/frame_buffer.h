@@ -101,6 +101,39 @@ class V4L2FrameBuffer : public FrameBuffer {
   base::Lock lock_;
 };
 
+// V4L2MmapedFrameBuffer is used for the V4L2_MEMORY_MMAP buffer from V4L2CameraDevice.
+// Constructor just initializes empty buffer.
+// User should SetOffset with offset retrieved from VIDIOC_QUERYBUF and call Map()
+class V4L2MmapedFrameBuffer : public FrameBuffer {
+ public:
+  V4L2MmapedFrameBuffer();
+  // Unmaps |data_|
+  ~V4L2MmapedFrameBuffer();
+
+  int Map() override;
+  int Unmap() override;
+  int SetOffset(uint32_t offset);
+  uint32_t GetOffset() const { return offset_; }
+  int SetFd(int fd);
+  void SetWidth(uint32_t width) { width_ = width; }
+  void SetHeight(uint32_t height) { height_ = height; }
+  int SetDataSize(size_t data_size) override;
+  void Reset();
+ private:
+  // offset of the buffer from the start of the V4L2 device memory
+  // as returned by VIDIOC_QUERYBUF
+  uint32_t offset_;
+
+  // FD of V4L2 device to perform mmap'ing from
+  // cannot be changed if current buffer is mmap'ed
+  int dev_fd_;
+
+  bool is_mapped_;
+
+  // Lock to guard |is_mapped_|.
+  base::Lock lock_;
+};
+
 // GrallocFrameBuffer is used for the buffer from Android framework. Uses
 // CameraBufferMapper to lock and unlock the buffer.
 class GrallocFrameBuffer : public FrameBuffer {
