@@ -60,6 +60,7 @@ v4l2_src_files := \
   v4l2_camera_hal.cpp \
   v4l2_metadata_factory.cpp \
   v4l2_wrapper.cpp \
+  v4l2_generic_wrapper.cpp \
 
 v4l2_test_files := \
   format_metadata_factory_test.cpp \

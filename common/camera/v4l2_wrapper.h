@@ -38,6 +38,8 @@ class V4L2Wrapper {
  public:
   // Use this method to create V4L2Wrapper objects. Functionally equivalent
   // to "new V4L2Wrapper", except that it may return nullptr in case of failure.
+  // Depending on the specified device_path it will create proper device specific
+  // wrapper
   static V4L2Wrapper* NewV4L2Wrapper(const std::string device_path);
   virtual ~V4L2Wrapper();
 
@@ -80,28 +82,45 @@ class V4L2Wrapper {
       const std::array<int32_t, 2>& size,
       std::array<int64_t, 2>* duration_range);
   virtual int SetFormat(const StreamFormat& desired_format,
-                        uint32_t* result_max_buffers);
+                        uint32_t* result_max_buffers) = 0;
   // Manage buffers.
   virtual int EnqueueRequest(
-      std::shared_ptr<default_camera_hal::CaptureRequest> request);
+      std::shared_ptr<default_camera_hal::CaptureRequest> request) = 0;
   virtual int DequeueRequest(
-      std::shared_ptr<default_camera_hal::CaptureRequest>* request);
-  virtual int GetInFlightBufferCount();
+      std::shared_ptr<default_camera_hal::CaptureRequest>* request) = 0;
+  virtual int GetInFlightBufferCount() = 0;
 
- private:
-  // Constructor is private to allow failing on bad input.
+ protected:
+  // Constructor is protected to allow failing on bad input.
   // Use NewV4L2Wrapper instead.
   V4L2Wrapper(const std::string device_path);
 
   // Connect or disconnect to the device. Access by creating/destroying
   // a V4L2Wrapper::Connection object.
-  int Connect();
-  void Disconnect();
+  virtual int Connect();
+  virtual void Disconnect();
   // Perform an ioctl call in a thread-safe fashion.
   template <typename T>
-  int IoctlLocked(int request, T data);
+  int IoctlLocked(int request, T data) {
+    // Potentially called so many times logging entry is a bad idea.
+    std::lock_guard<std::mutex> lock(device_lock_);
+
+    if (!connected()) {
+      HAL_LOGE("Device %s not connected.", device_path_.c_str());
+      return -ENODEV;
+    }
+    return TEMP_FAILURE_RETRY(ioctl(device_fd_.get(), request, data));
+  }
+
   // Request/release userspace buffer mode via VIDIOC_REQBUFS.
-  int RequestBuffers(uint32_t num_buffers);
+  virtual int RequestBuffers(uint32_t num_buffers) = 0;
+
+  std::unique_ptr<StreamFormat> format_;
+  // Supported formats.
+  arc::SupportedFormats supported_formats_;
+  // Qualified formats.
+  arc::SupportedFormats qualified_formats_; 
+private:
 
   inline bool connected() { return device_fd_.get() >= 0; }
 
@@ -116,38 +135,13 @@ class V4L2Wrapper {
   // std::unique_ptr<V4L2Gralloc> gralloc_;
   // Whether or not the device supports the extended control query.
   bool extended_query_supported_;
-  // The format this device is set up for.
-  std::unique_ptr<StreamFormat> format_;
-  // Lock protecting use of the buffer tracker.
-  std::mutex buffer_queue_lock_;
+
   // Lock protecting use of the device.
   std::mutex device_lock_;
   // Lock protecting connecting/disconnecting the device.
   std::mutex connection_lock_;
   // Reference count connections.
   int connection_count_;
-  // Supported formats.
-  arc::SupportedFormats supported_formats_;
-  // Qualified formats.
-  arc::SupportedFormats qualified_formats_;
-
-  class RequestContext {
-   public:
-    RequestContext()
-        : active(false),
-          camera_buffer(std::make_shared<arc::AllocatedFrameBuffer>(0)){};
-    ~RequestContext(){};
-    // Indicates whether this request context is in use.
-    bool active;
-    // Buffer handles of the context.
-    std::shared_ptr<arc::AllocatedFrameBuffer> camera_buffer;
-    std::shared_ptr<default_camera_hal::CaptureRequest> request;
-  };
-
-  // Map of in flight requests.
-  // |buffers_.size()| will always be the maximum number of buffers this device
-  // can handle in its current format.
-  std::vector<RequestContext> buffers_;
 
   friend class Connection;
   friend class V4L2WrapperMock;

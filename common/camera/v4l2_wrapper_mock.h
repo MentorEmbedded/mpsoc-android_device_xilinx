@@ -21,13 +21,13 @@
 
 #include <gmock/gmock.h>
 
-#include "v4l2_wrapper.h"
+#include "v4l2_generic_wrapper.h"
 
 namespace v4l2_camera_hal {
 
-class V4L2WrapperMock : public V4L2Wrapper {
+class V4L2WrapperMock : public V4L2GenericWrapper {
  public:
-  V4L2WrapperMock() : V4L2Wrapper(""){};
+  V4L2WrapperMock() : V4L2GenericWrapper(""){};
   MOCK_METHOD0(StreamOn, int());
   MOCK_METHOD0(StreamOff, int());
   MOCK_METHOD2(QueryControl,
