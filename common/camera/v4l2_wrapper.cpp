@@ -19,6 +19,7 @@
 
 #include "v4l2_wrapper.h"
 #include "v4l2_generic_wrapper.h"
+#include "v4l2_xilinx_hdmi_wrapper.h"
 
 #include <algorithm>
 #include <array>
@@ -32,6 +33,7 @@
 #include <sys/types.h>
 
 #include <android-base/unique_fd.h>
+#include <cutils/properties.h>
 
 #include "arc/cached_frame.h"
 
@@ -56,6 +58,11 @@ const int32_t kStandardSizes[][2] = {
 };
 
 V4L2Wrapper* V4L2Wrapper::NewV4L2Wrapper(const std::string device_path) {
+  char xlnx_hdmi_device[PROPERTY_VALUE_MAX];
+  property_get("xlnx.v4l2.hdmi.device", xlnx_hdmi_device, "/dev/video0");
+  if (device_path.compare(xlnx_hdmi_device)==0)
+    return new V4L2XilinxHdmiWrapper(device_path);
+
   return new V4L2GenericWrapper(device_path);
 }
 
