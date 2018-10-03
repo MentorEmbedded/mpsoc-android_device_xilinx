@@ -120,6 +120,8 @@ class V4L2Wrapper {
   arc::SupportedFormats supported_formats_;
   // Qualified formats.
   arc::SupportedFormats qualified_formats_; 
+  // The opened device fd.
+  android::base::unique_fd device_fd_;
 private:
 
   inline bool connected() { return device_fd_.get() >= 0; }
@@ -129,8 +131,6 @@ private:
 
   // The camera device path. For example, /dev/video0.
   const std::string device_path_;
-  // The opened device fd.
-  android::base::unique_fd device_fd_;
   // The underlying gralloc module.
   // std::unique_ptr<V4L2Gralloc> gralloc_;
   // Whether or not the device supports the extended control query.
