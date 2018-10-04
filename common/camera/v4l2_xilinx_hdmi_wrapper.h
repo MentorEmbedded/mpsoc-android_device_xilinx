@@ -63,9 +63,19 @@ class V4L2XilinxHdmiWrapper: public V4L2Wrapper {
  protected:
   // Override Disconnect() to release buffers on device closing
   void Disconnect();
+  int Connect();
 
   int RequestBuffers(uint32_t num_buffers);
  private:
+  // Finds /dev/v4l-subdevX devices for scaler and HDMI RX
+  // Returns -1 on error, 0 otherwise
+  int FindSubdevices();
+
+  // Initialize source pad of the scaler.
+  // Check current HDMI link format and resolution.
+  // Set scaler's source pad params accordingly
+  int InitScalerSource();
+
   class XilinxRequestContext {
    public:
     XilinxRequestContext()
@@ -83,6 +93,11 @@ class V4L2XilinxHdmiWrapper: public V4L2Wrapper {
   std::mutex buffer_queue_lock_;
 
   std::vector<XilinxRequestContext> buffers_;
+
+  std::string scaler_dev_path_;
+  std::string hdmi_rx_dev_path_;
+  std::mutex subdevs_lock_;
+
   DISALLOW_COPY_AND_ASSIGN(V4L2XilinxHdmiWrapper);
 };
 
