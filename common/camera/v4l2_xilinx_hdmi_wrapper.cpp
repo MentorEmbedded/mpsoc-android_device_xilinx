@@ -25,13 +25,17 @@
 #include <mutex>
 #include <vector>
 
+#include <dirent.h>
 #include <inttypes.h>
 #include <fcntl.h>
 #include <linux/videodev2.h>
+#include <linux/v4l2-subdev.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 #include <android-base/unique_fd.h>
+#include <cutils/properties.h>
 
 #include "arc/cached_frame.h"
 
@@ -47,6 +51,155 @@ V4L2XilinxHdmiWrapper::V4L2XilinxHdmiWrapper(const std::string device_path) :
 }
 
 V4L2XilinxHdmiWrapper::~V4L2XilinxHdmiWrapper() {}
+
+int V4L2XilinxHdmiWrapper::FindSubdevices() {
+  HAL_LOG_ENTER();
+  std::lock_guard<std::mutex> lock(subdevs_lock_);
+  bool found_scaler = false;
+  bool found_rx = false;
+
+  // name of main hdmi capture device in device tree
+  char hdmi_device_name[PROPERTY_VALUE_MAX];
+
+  // name of scaler subdevice
+  char scaler_device_name[PROPERTY_VALUE_MAX];
+
+  // name of hdmi_rx subdevice
+  char rx_device_name[PROPERTY_VALUE_MAX];
+
+  property_get("xlnx.v4l2.hdmi.main_dts_name", hdmi_device_name, "vcap_hdmi_1");
+  property_get("xlnx.v4l2.hdmi.scaler_dts_name", scaler_device_name, "a0080000.scaler");
+  property_get("xlnx.v4l2.hdmi.rx_dts_name", rx_device_name, "a0000000.hdmi_rx_ss");
+
+  std::string sysfs_path = "/sys/devices/platform/amba/amba:";
+  sysfs_path += hdmi_device_name;
+  sysfs_path += "/video4linux/";
+
+  DIR* dir = opendir(sysfs_path.c_str());
+  if (dir == NULL) {
+    HAL_LOGE("Failed to open %s", sysfs_path.c_str());
+    return -ENODEV;
+  }
+  dirent* ent;
+  while ((ent = readdir(dir))) {
+    std::string desired = "v4l-subdev";
+    size_t len = desired.size();
+    if (strncmp(desired.c_str(), ent->d_name, len) == 0) {
+      if (strlen(ent->d_name) > len && isdigit(ent->d_name[len])) {
+        // ent is a numbered v4l-subdev node.
+        // open file with a subdevice name
+        std::string sbd_name_file = sysfs_path;
+        sbd_name_file += ent->d_name;
+        sbd_name_file += "/name";
+        int fd = open(sbd_name_file.c_str(), O_RDONLY);
+        if (fd < 0)
+          continue;
+        char tmp_name[PROPERTY_VALUE_MAX];
+        memset (tmp_name, 0, PROPERTY_VALUE_MAX);
+        int ret = read(fd, tmp_name, PROPERTY_VALUE_MAX);
+        if (ret <= 0)
+          continue;
+
+        if(!found_scaler && (strncmp(scaler_device_name, tmp_name, strlen(scaler_device_name)) == 0)){
+          found_scaler = true;
+          scaler_dev_path_ = "/dev/";
+          scaler_dev_path_ += ent->d_name;
+          continue;
+        }
+        if(!found_rx && (strncmp(rx_device_name, tmp_name, strlen(rx_device_name)) == 0)){
+          found_rx = true;
+          hdmi_rx_dev_path_ = "/dev/";
+          hdmi_rx_dev_path_ += ent->d_name;
+          continue;
+        }
+        if (found_scaler && found_rx)
+          break;
+      }
+    }
+  }
+
+  if (found_rx && found_scaler)
+    return 0;
+  return -ENODEV;
+}
+
+
+// Initialize source pad of the scaler.
+// Check current HDMI link format and resolution.
+// Set scaler's source pad params accordingly
+int V4L2XilinxHdmiWrapper::InitScalerSource() {
+  std::lock_guard<std::mutex> lock(subdevs_lock_);
+  int fd = open(hdmi_rx_dev_path_.c_str(), O_RDONLY);
+  if (fd < 0){
+      HAL_LOGE("Failed to open HDMI RX subdevice %s", hdmi_rx_dev_path_.c_str());
+      return -ENODEV;
+  }
+  base::ScopedFD rx_fd(fd);
+
+  // Get current HDMI input resolution
+  struct v4l2_dv_timings timings;
+  memset(&timings, 0, sizeof(timings));
+  int ret = ioctl(rx_fd.get(), VIDIOC_SUBDEV_QUERY_DV_TIMINGS, &timings);
+  if (ret < 0){
+    HAL_LOGE("Failed to get HDMI RX timings: %s", strerror(errno));
+    return ret;
+  }
+
+  // Get bus pixel format
+  struct v4l2_subdev_format fmt_req;
+  memset(&fmt_req, 0, sizeof(fmt_req));
+  //HDMI RX has only 1 pad
+  fmt_req.pad = 0;
+  fmt_req.which = V4L2_SUBDEV_FORMAT_ACTIVE;
+  ret = ioctl(rx_fd.get(), VIDIOC_SUBDEV_G_FMT, &fmt_req);
+  if (ret < 0){
+    HAL_LOGE("Failed to get HDMI RX format: %s", strerror(errno));
+    return ret;
+  }
+
+  // Now open and setup scaler subdevice
+  fd = open(scaler_dev_path_.c_str(), O_RDWR);
+  if (fd < 0){
+      HAL_LOGE("Failed to open scaler subdevice %s", scaler_dev_path_.c_str());
+      return ret;
+  }
+  base::ScopedFD scaler_fd(fd);
+
+  // Use format we received from HDMI RX
+  // pad 0 (Sink) is connected to HDMI RX
+  fmt_req.pad = 0;
+  fmt_req.which = V4L2_SUBDEV_FORMAT_ACTIVE;
+  ret = ioctl(scaler_fd.get(), VIDIOC_SUBDEV_S_FMT, &fmt_req);
+  if (ret < 0){
+    HAL_LOGE("Failed to set scaler format");
+    return ret;
+  }
+
+  return 0;
+}
+
+int V4L2XilinxHdmiWrapper::Connect() {
+  HAL_LOG_ENTER();
+  // First search for scaler and HDMI RX subdevices
+  // Do it each time on Connect() to be sure we
+  // use proper nodes
+  int ret = FindSubdevices();
+  if(ret){
+    HAL_LOGE("Failed to find required v4l-subdevives");
+    return ret;
+  }
+
+  ret = InitScalerSource();
+  if(ret){
+    HAL_LOGE("Failed to initialize video scaler");
+    return ret;
+  }
+
+  // Now we can call base's Connect()
+  // It will call GetFormats() which will use initialized
+  // subdevices nodes
+  return V4L2Wrapper::Connect();
+}
 
 void V4L2XilinxHdmiWrapper::Disconnect() {
   HAL_LOG_ENTER();
