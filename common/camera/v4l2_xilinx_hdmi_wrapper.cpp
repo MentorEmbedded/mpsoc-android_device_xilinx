@@ -30,6 +30,7 @@
 #include <fcntl.h>
 #include <linux/videodev2.h>
 #include <linux/v4l2-subdev.h>
+#include <linux/media-bus-format.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -39,12 +40,31 @@
 
 #include "arc/cached_frame.h"
 
+// FIX ME: Xilinx's specific definition is not in kernel-headers yet
+#define MEDIA_BUS_FMT_VYYUYY8_1X24    0x202c
+
 namespace v4l2_camera_hal {
 
 using arc::V4L2MmapedFrameBuffer;
 using arc::SupportedFormat;
 using arc::SupportedFormats;
 using default_camera_hal::CaptureRequest;
+
+// Xilinx scaler supports resolutions from 32x32 to 4096x4096
+// For now just declare that we support a set of standard sizes
+const int32_t kStandardSizes[][2] = {
+  {4096, 2160}, // 4KDCI (for USB camera)
+  {3840, 2160}, // 4KUHD (for USB camera)
+  {3280, 2464}, // 8MP
+  {2560, 1440}, // QHD
+  {1920, 1080}, // HD1080
+  {1640, 1232}, // 2MP
+  {1280,  720}, // HD
+  {1024,  768}, // XGA
+  { 640,  480}, // VGA
+  { 320,  240}, // QVGA
+  { 176,  144}  // QCIF
+};
 
 V4L2XilinxHdmiWrapper::V4L2XilinxHdmiWrapper(const std::string device_path) :
   V4L2Wrapper(device_path) {
@@ -161,7 +181,7 @@ int V4L2XilinxHdmiWrapper::InitScalerSource() {
   fd = open(scaler_dev_path_.c_str(), O_RDWR);
   if (fd < 0){
       HAL_LOGE("Failed to open scaler subdevice %s", scaler_dev_path_.c_str());
-      return ret;
+      return -ENODEV;
   }
   base::ScopedFD scaler_fd(fd);
 
@@ -171,7 +191,7 @@ int V4L2XilinxHdmiWrapper::InitScalerSource() {
   fmt_req.which = V4L2_SUBDEV_FORMAT_ACTIVE;
   ret = ioctl(scaler_fd.get(), VIDIOC_SUBDEV_S_FMT, &fmt_req);
   if (ret < 0){
-    HAL_LOGE("Failed to set scaler format");
+    HAL_LOGE("Failed to set scaler sink format");
     return ret;
   }
 
@@ -218,8 +238,10 @@ int V4L2XilinxHdmiWrapper::GetFormats(std::set<uint32_t>* v4l2_formats) {
 
 int V4L2XilinxHdmiWrapper::GetFormatFrameSizes(uint32_t v4l2_format,
                                      std::set<std::array<int32_t, 2>>* sizes) {
-  sizes->insert({{{static_cast<int32_t>(640),
-                   static_cast<int32_t>(480)}}});
+  for (const auto size : kStandardSizes) {
+    sizes->insert({{{static_cast<int32_t>(size[0]),
+                   static_cast<int32_t>(size[1])}}});
+  }
   return 0;
 }
 
@@ -245,6 +267,69 @@ int V4L2XilinxHdmiWrapper::GetFormatFrameDurationRange(
   max = FractToNs(duration_query.discrete);
   (*duration_range)[0] = min;
   (*duration_range)[1] = max;
+  return 0;
+}
+
+// Convert V4L2 fourcc to MEDIA_BUS_FMT_
+// Should be aligned with xilinx_vip.c driver
+uint32_t V4L2XilinxHdmiWrapper::V4L2ToScalerMbusFormat(uint32_t v4l2_pixel_format) {
+  switch (v4l2_pixel_format) {
+    case V4L2_PIX_FMT_NV12:
+      return MEDIA_BUS_FMT_VYYUYY8_1X24;
+    case V4L2_PIX_FMT_YUYV:
+    case V4L2_PIX_FMT_UYVY:
+    case V4L2_PIX_FMT_NV16:
+      return MEDIA_BUS_FMT_UYVY8_1X16;
+    case V4L2_PIX_FMT_BGR24:
+    case V4L2_PIX_FMT_RGB24:
+      return MEDIA_BUS_FMT_RBG888_1X24;
+    default:
+      // Unsupported format
+      HAL_LOGV("v4l2 pixel format %u is not supported by scaler", v4l2_pixel_format);
+      break;
+  }
+  return 0;
+}
+
+// Set format of scaler's source pad.
+// Scaler's source pad is connected to the capture node /dev/videoN.
+// This function converts specified StreamFormat to the matching
+// MEDIA_BUS_FMT_
+int V4L2XilinxHdmiWrapper::SetScalerFormat(const StreamFormat& format) {
+  // first check specified format
+  uint32_t mbus_fmt_code = V4L2ToScalerMbusFormat(format.v4l2_pixel_format());
+  if (mbus_fmt_code == 0){
+      HAL_LOGE("Wrong v4l2 pixel format %u", format.v4l2_pixel_format());
+      return -EINVAL;
+  }
+
+  // now we should lock
+  std::lock_guard<std::mutex> lock(subdevs_lock_);
+  // Open and scaler subdevice
+  int fd = open(scaler_dev_path_.c_str(), O_RDWR);
+  if (fd < 0){
+      HAL_LOGE("Failed to open scaler subdevice %s", scaler_dev_path_.c_str());
+      return -ENODEV;
+  }
+  base::ScopedFD scaler_fd(fd);
+
+  // set format
+  struct v4l2_subdev_format fmt_req;
+  memset(&fmt_req, 0, sizeof(fmt_req));
+  //scaler source pad is pad 1
+  fmt_req.pad = 1;
+  fmt_req.which = V4L2_SUBDEV_FORMAT_ACTIVE;
+  fmt_req.format.width = format.width();
+  fmt_req.format.height = format.height();
+  fmt_req.format.code = mbus_fmt_code;
+  fmt_req.format.colorspace = V4L2_COLORSPACE_DEFAULT;
+
+  int ret = ioctl(scaler_fd.get(), VIDIOC_SUBDEV_S_FMT, &fmt_req);
+  if (ret < 0){
+    HAL_LOGE("Failed to set scaler source format");
+    return ret;
+  }
+
   return 0;
 }
 
@@ -275,6 +360,13 @@ int V4L2XilinxHdmiWrapper::SetFormat(const StreamFormat& desired_format,
   // Set the camera to the new format.
   v4l2_format new_format;
   const StreamFormat resolved_format(format);
+
+  int res = SetScalerFormat(resolved_format);
+  if (res){
+    HAL_LOGE("Failed to set scaler source format: %s", strerror(errno));
+    return res;
+  }
+
   resolved_format.FillFormatRequest(&new_format);
 
   // TODO(b/29334616): When async, this will need to check if the stream
@@ -294,7 +386,7 @@ int V4L2XilinxHdmiWrapper::SetFormat(const StreamFormat& desired_format,
   format_.reset(new StreamFormat(new_format));
 
   // Format changed, request new buffers.
-  int res = RequestBuffers(2);
+  res = RequestBuffers(2);
   if (res) {
     HAL_LOGE("Requesting buffers for new format failed.");
     return res;
