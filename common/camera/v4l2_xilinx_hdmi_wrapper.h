@@ -76,6 +76,17 @@ class V4L2XilinxHdmiWrapper: public V4L2Wrapper {
   // Set scaler's source pad params accordingly
   int InitScalerSource();
 
+  // Set format of scaler's source pad.
+  // Scaler's source pad is connected to the capture node /dev/videoN.
+  // This function converts specified StreamFormat to the matching
+  // MEDIA_BUS_FMT_
+  int SetScalerFormat(const StreamFormat& format);
+
+  // Convert V4L2 fourcc to MEDIA_BUS_FMT_
+  // Should be aligned with xilinx_vip.c driver
+  // returns 0 on error
+  static uint32_t V4L2ToScalerMbusFormat(uint32_t v4l2_pixel_format);
+
   class XilinxRequestContext {
    public:
     XilinxRequestContext()
