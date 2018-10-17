@@ -36,12 +36,26 @@ PRODUCT_COPY_FILES +=  \
     frameworks/native/data/etc/android.software.app_widgets.xml:system/etc/permissions/android.software.app_widgets.xml \
     frameworks/native/data/etc/android.software.backup.xml:system/etc/permissions/android.software.backup.xml \
     frameworks/native/data/etc/android.hardware.usb.accessory.xml:system/etc/permissions/android.hardware.usb.accessory.xml \
-    frameworks/native/data/etc/android.hardware.usb.host.xml:system/etc/permissions/android.hardware.usb.host.xml
+    frameworks/native/data/etc/android.hardware.usb.host.xml:system/etc/permissions/android.hardware.usb.host.xml \
+    device/xilinx/common/audio/audio_policy.conf:system/etc/audio_policy.conf
 
 # Add libion for graphics
 PRODUCT_PACKAGES += \
 	libion \
 	libdrm
+
+# Audio
+PRODUCT_PACKAGES += \
+    audio.primary.zynqmp \
+    audio.usb.default \
+    audio.r_submix.default \
+    tinyplay
+
+PRODUCT_PACKAGES += \
+    android.hardware.audio@2.0-impl \
+    android.hardware.audio.effect@2.0-impl \
+    android.hardware.broadcastradio@1.0-impl \
+    android.hardware.soundtrigger@2.0-impl
 
 # Include libs for SW graphics
 PRODUCT_PACKAGES += libGLES_android
