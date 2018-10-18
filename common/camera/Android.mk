@@ -62,6 +62,7 @@ v4l2_src_files := \
   v4l2_wrapper.cpp \
   v4l2_generic_wrapper.cpp \
   v4l2_xilinx_hdmi_wrapper.cpp \
+  v4l2_xilinx_csi_wrapper.cpp \
 
 v4l2_test_files := \
   format_metadata_factory_test.cpp \
