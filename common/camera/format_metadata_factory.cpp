@@ -226,9 +226,9 @@ int AddFormatComponents(
         const int32_t min_fps = 1000000000 / size_max_frame_duration;
         const int32_t max_fps = 1000000000 / size_min_frame_duration;
         if (std::find(fps_ranges.begin(), fps_ranges.end(),
-                      std::array<int32_t, 2>{min_fps, max_fps}) ==
+                      std::array<int32_t, 2>{{min_fps, max_fps}}) ==
             fps_ranges.end()) {
-          fps_ranges.push_back({min_fps, max_fps});
+          fps_ranges.push_back({{min_fps, max_fps}});
         }
       }
     }
