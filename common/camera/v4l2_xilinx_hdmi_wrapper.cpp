@@ -233,6 +233,10 @@ void V4L2XilinxHdmiWrapper::Disconnect() {
 int V4L2XilinxHdmiWrapper::GetFormats(std::set<uint32_t>* v4l2_formats) {
   HAL_LOG_ENTER();
   v4l2_formats->insert(V4L2_PIX_FMT_YUYV);
+  v4l2_formats->insert(V4L2_PIX_FMT_UYVY);
+  v4l2_formats->insert(V4L2_PIX_FMT_NV12);
+  v4l2_formats->insert(V4L2_PIX_FMT_BGR24);
+  v4l2_formats->insert(V4L2_PIX_FMT_RGB24);
   return 0;
 }
 
@@ -342,6 +346,17 @@ int V4L2XilinxHdmiWrapper::SetFormat(const StreamFormat& desired_format,
     *result_max_buffers = buffers_.size();
     return 0;
   }
+
+  if (format_) {
+    // If we had an old format, first request 0 buffers to inform the device
+    // we're no longer using any previously "allocated" buffers from the old
+    // format. Otherwise driver can return EBUSY
+    int res = RequestBuffers(0);
+    if (res) {
+      return res;
+    }
+  }
+
 
   // Select the matching format, or if not available, select a qualified format
   // we can convert from.
@@ -530,6 +545,11 @@ int V4L2XilinxHdmiWrapper::DequeueRequest(std::shared_ptr<CaptureRequest>* reque
 }
 
 int V4L2XilinxHdmiWrapper::RequestBuffers(uint32_t num_requested) {
+  // before requesting new buffers we need to unmap and delete all
+  // current buffers. Otherwise driver can return EBUSY
+  std::lock_guard<std::mutex> buffer_lock(buffer_queue_lock_);
+  buffers_.clear();
+
   v4l2_requestbuffers req_buffers;
   memset(&req_buffers, 0, sizeof(req_buffers));
   req_buffers.type = format_->type();
@@ -550,8 +570,6 @@ int V4L2XilinxHdmiWrapper::RequestBuffers(uint32_t num_requested) {
   }
 
   buffers_.resize(req_buffers.count);
-
-  std::lock_guard<std::mutex> guard(buffer_queue_lock_);
 
   for (size_t i = 0; i < buffers_.size(); ++i) {
     if (!buffers_[i].active) {
