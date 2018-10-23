@@ -55,6 +55,7 @@ using android::CameraMetadata;
 static int YU12ToYV12(const void* yv12, void* yu12, int width, int height,
                       int dst_stride_y, int dst_stride_uv);
 static int YU12ToNV21(const void* yv12, void* nv21, int width, int height);
+static int YU12ToNV12(const void* yv12, void* nv21, int width, int height);
 static bool ConvertToJpeg(const CameraMetadata& metadata,
                           const FrameBuffer& in_frame, FrameBuffer* out_frame);
 static bool SetExifTags(const CameraMetadata& metadata, ExifUtils* utils);
@@ -81,6 +82,7 @@ size_t ImageProcessor::GetConvertedSize(int fourcc, uint32_t width,
     case V4L2_PIX_FMT_YUV420:  // YU12
     // Fall-through.
     case V4L2_PIX_FMT_NV21:  // NV21
+    case V4L2_PIX_FMT_NV12:  // NV12
       return width * height * 3 / 2;
     case V4L2_PIX_FMT_BGR32:
     case V4L2_PIX_FMT_RGB32:
@@ -102,7 +104,7 @@ bool ImageProcessor::SupportsConversion(uint32_t from_fourcc,
           to_fourcc == V4L2_PIX_FMT_YUV420 ||
           to_fourcc == V4L2_PIX_FMT_YVU420 || to_fourcc == V4L2_PIX_FMT_NV21 ||
           to_fourcc == V4L2_PIX_FMT_RGB32 || to_fourcc == V4L2_PIX_FMT_BGR32 ||
-          to_fourcc == V4L2_PIX_FMT_JPEG);
+          to_fourcc == V4L2_PIX_FMT_JPEG  || to_fourcc == V4L2_PIX_FMT_NV12);
     case V4L2_PIX_FMT_MJPEG:
       return (to_fourcc == V4L2_PIX_FMT_YUV420);
     default:
@@ -182,6 +184,13 @@ int ImageProcessor::ConvertFormat(const CameraMetadata& metadata,
         LOGF_IF(ERROR, res) << "YU12ToNV21() returns " << res;
         return res ? -EINVAL : 0;
       }
+      case V4L2_PIX_FMT_NV12:  // NV12
+      {
+        int res = YU12ToNV12(in_frame.GetData(), out_frame->GetData(),
+                             in_frame.GetWidth(), in_frame.GetHeight());
+        LOGF_IF(ERROR, res) << "YU12ToNV12() returns " << res;
+        return res ? -EINVAL : 0;
+      }
       case V4L2_PIX_FMT_BGR32: {
         int res = libyuv::I420ToABGR(
             in_frame.GetData(),  /* src_y */
@@ -250,6 +259,35 @@ int ImageProcessor::ConvertFormat(const CameraMetadata& metadata,
         LOGF(ERROR) << "Destination pixel format "
                     << FormatToString(out_frame->GetFourcc())
                     << " is unsupported for MJPEG source format.";
+        return -EINVAL;
+    }
+  } else if (in_frame.GetFourcc() == V4L2_PIX_FMT_NV12) {
+    switch (out_frame->GetFourcc()) {
+      case V4L2_PIX_FMT_YUV420:  // YU12
+      {
+        int res = libyuv::NV12ToI420(
+            in_frame.GetData(),   /* src_y */
+            in_frame.GetWidth(),  /* src_stride_y */
+            in_frame.GetData() +
+                in_frame.GetWidth() * in_frame.GetHeight(), /* src_uv */
+            in_frame.GetWidth(), /* src_stride_uv */
+            out_frame->GetData(),    /* dst_y */
+            out_frame->GetWidth(),   /* dst_stride_y */
+            out_frame->GetData() +
+                out_frame->GetWidth() * out_frame->GetHeight(), /* dst_u */
+            out_frame->GetWidth() / 2, /* dst_stride_u */
+            out_frame->GetData() + out_frame->GetWidth() *
+                                   out_frame->GetHeight() * 5 / 4, /* dst_v */
+            out_frame->GetWidth() / 2,  /* dst_stride_v */
+            in_frame.GetWidth(),    /* width */
+            in_frame.GetHeight());  /* height */
+        LOGF_IF(ERROR, res) << "NV12ToI420() for YU12 returns " << res;
+        return res ? -EINVAL : 0;
+      }
+      default:
+        LOGF(ERROR) << "Destination pixel format "
+                    << FormatToString(out_frame->GetFourcc())
+                    << " is unsupported for NV12 source format.";
         return -EINVAL;
     }
   } else {
@@ -341,6 +379,30 @@ static int YU12ToNV21(const void* yu12, void* nv21, int width, int height) {
     for (int j = 0; j < width / 2; j++) {
       *vu_dst++ = *v_src++;
       *vu_dst++ = *u_src++;
+    }
+  }
+  return 0;
+}
+
+static int YU12ToNV12(const void* yu12, void* nv12, int width, int height) {
+  if ((width % 2) || (height % 2)) {
+    LOGF(ERROR) << "Width or height is not even (" << width << " x " << height
+                << ")";
+    return -EINVAL;
+  }
+
+  const uint8_t* src = reinterpret_cast<const uint8_t*>(yu12);
+  uint8_t* dst = reinterpret_cast<uint8_t*>(nv12);
+  const uint8_t* u_src = src + width * height;
+  const uint8_t* v_src = src + width * height * 5 / 4;
+  uint8_t* uv_dst = dst + width * height;
+
+  memcpy(dst, src, width * height);
+
+  for (int i = 0; i < height / 2; i++) {
+    for (int j = 0; j < width / 2; j++) {
+      *uv_dst++ = *u_src++;
+      *uv_dst++ = *v_src++;
     }
   }
   return 0;
