@@ -141,6 +141,7 @@ int GrallocFrameBuffer::Map() {
     case V4L2_PIX_FMT_YUV420:
     case V4L2_PIX_FMT_YVU420:
     case V4L2_PIX_FMT_YUYV:
+    case V4L2_PIX_FMT_NV12:
       android_ycbcr yuv_data;
       ret = gralloc_module_->lock_ycbcr(gralloc_module_, buffer_, stream_usage_,
                                         0, 0, width_, height_, &yuv_data);
@@ -167,7 +168,7 @@ int GrallocFrameBuffer::Map() {
   data_ = static_cast<uint8_t*>(addr);
   if (fourcc_ == V4L2_PIX_FMT_YVU420 || fourcc_ == V4L2_PIX_FMT_YUV420 ||
       fourcc_ == V4L2_PIX_FMT_NV21 || fourcc_ == V4L2_PIX_FMT_RGB32 ||
-      fourcc_ == V4L2_PIX_FMT_BGR32) {
+      fourcc_ == V4L2_PIX_FMT_BGR32 || fourcc_ == V4L2_PIX_FMT_NV12) {
     buffer_size_ = ImageProcessor::GetConvertedSize(fourcc_, width_, height_);
   }
 
