@@ -130,7 +130,7 @@ static int gralloc_alloc_buffer(alloc_device_t *dev, size_t size, int usage, buf
 
 		if (m->gralloc_legacy_ion)
 		{
-			if (usage & GRALLOC_USAGE_HW_FB)
+			if ((usage & GRALLOC_USAGE_HW_FB) || (usage & GRALLOC_USAGE_HW_CAMERA_WRITE))
 				ret = ion_alloc(m->ion_client, size, 0, ION_HEAP_TYPE_DMA_MASK, 0, &(ion_hnd));
 			else
 				ret = ion_alloc(m->ion_client, size, 0, ION_HEAP_SYSTEM_MASK, 0, &(ion_hnd));
@@ -165,7 +165,7 @@ static int gralloc_alloc_buffer(alloc_device_t *dev, size_t size, int usage, buf
 		}
 		else
 		{
-			if (usage & GRALLOC_USAGE_HW_FB)
+			if ((usage & GRALLOC_USAGE_HW_FB) || (usage & GRALLOC_USAGE_HW_CAMERA_WRITE))
 				ret = ion_alloc_fd(m->ion_client, size, 0, 1 << m->cma_heap_id, 0, &(shared_fd));
 			else
 				ret = ion_alloc_fd(m->ion_client, size, 0, 1 << m->system_heap_id, 0, &(shared_fd));
@@ -430,7 +430,20 @@ static int alloc_device_alloc(alloc_device_t *dev, int w, int h, int format, int
 	size_t stride;
 	int bpp = 1;
 
-	if (format == HAL_PIXEL_FORMAT_YCrCb_420_SP || format == HAL_PIXEL_FORMAT_YV12
+	/* Pick the right concrete pixel format given the endpoints as encoded in
+	 * the usage bits. Every end-point pair needs explicit listing here.
+	 */
+	if (format == HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED)
+	{
+		/* Camera is producer */
+		if (usage & GRALLOC_USAGE_HW_CAMERA_WRITE)
+		{
+			/* Camera-to-display is NV12 */
+			format = HAL_PIXEL_FORMAT_YCbCr_420_888;
+		}
+	}
+
+	if (format == HAL_PIXEL_FORMAT_YCrCb_420_SP || format == HAL_PIXEL_FORMAT_YV12 || format == HAL_PIXEL_FORMAT_YCbCr_420_888
 	        /* HAL_PIXEL_FORMAT_YCbCr_420_SP, HAL_PIXEL_FORMAT_YCbCr_420_P, HAL_PIXEL_FORMAT_YCbCr_422_I are not defined in Android.
 	         * To enable Mali DDK EGLImage support for those formats, firstly, you have to add them in Android system/core/include/system/graphics.h.
 	         * Then, define SUPPORT_LEGACY_FORMAT in the same header file(Mali DDK will also check this definition).
@@ -455,13 +468,14 @@ static int alloc_device_alloc(alloc_device_t *dev, int w, int h, int format, int
 				size = GRALLOC_ALIGN(h, 2) * (stride + GRALLOC_ALIGN(stride / 2, 16));
 
 				break;
-#ifdef SUPPORT_LEGACY_FORMAT
 
-			case HAL_PIXEL_FORMAT_YCbCr_420_SP:
+			/* we treat HAL_PIXEL_FORMAT_YCbCr_420_888 as NV12 */
+			case HAL_PIXEL_FORMAT_YCbCr_420_888:
 				stride = GRALLOC_ALIGN(w, 16);
 				size = GRALLOC_ALIGN(h, 16) * (stride + GRALLOC_ALIGN(stride / 2, 16));
 				break;
 
+#ifdef SUPPORT_LEGACY_FORMAT
 			case HAL_PIXEL_FORMAT_YCbCr_422_I:
 				stride = GRALLOC_ALIGN(w, 16);
 				size = h * stride * 2;
