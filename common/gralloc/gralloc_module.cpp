@@ -292,12 +292,6 @@ static int gralloc_lock(gralloc_module_t const *module, buffer_handle_t handle, 
 
 	private_handle_t *hnd = (private_handle_t *)handle;
 
-	if (hnd->format == HAL_PIXEL_FORMAT_YCbCr_420_888)
-	{
-		AERR("Buffer with format HAL_PIXEL_FORMAT_YCbCr_*_888 must be locked by lock_ycbcr()");
-		return -EINVAL;
-	}
-
 	pthread_mutex_lock(&s_map_lock);
 
 	if (hnd->lockState & private_handle_t::LOCK_STATE_UNREGISTERED)
@@ -379,9 +373,11 @@ static int gralloc_lock_ycbcr(gralloc_module_t const *module, buffer_handle_t ha
 				ycbcr->chroma_step = 1;
 				break;
 
-#ifdef SUPPORT_LEGACY_FORMAT
-
-			case HAL_PIXEL_FORMAT_YCbCr_420_SP:
+			/*
+			 * we treat HAL_PIXEL_FORMAT_YCbCr_420_888 as NV12,
+			 * same as legacy HAL_PIXEL_FORMAT_YCbCr_420_SP used by DDK
+			 */
+			case HAL_PIXEL_FORMAT_YCbCr_420_888:
 				ystride = cstride = GRALLOC_ALIGN(hnd->width, 16);
 				ycbcr->y  = (void *)hnd->base;
 				ycbcr->cb = (void *)((unsigned char *)hnd->base + ystride * hnd->height);
@@ -390,7 +386,6 @@ static int gralloc_lock_ycbcr(gralloc_module_t const *module, buffer_handle_t ha
 				ycbcr->cstride = cstride;
 				ycbcr->chroma_step = 2;
 				break;
-#endif
 
 			default:
 				AERR("Can not lock buffer, invalid format: 0x%x", hnd->format);
