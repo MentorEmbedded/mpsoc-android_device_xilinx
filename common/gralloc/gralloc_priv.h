@@ -31,6 +31,25 @@
 #include <alloc_device.h>
 #include <utils/Log.h>
 
+/*
+ * In order to support direct rendering of NV12 buffers from camera to display, we
+ * still need to support NV12 in EGL (MALI DDK), since Android will try create EGLImage for graphics buffer even
+ * if it will never be used/processed by GPU.
+ *
+ * MALI DDK EGLImage supports NV12 format as HAL_PIXEL_FORMAT_YCbCr_420_SP
+ * HAL_PIXEL_FORMAT_YCbCr_420_SP and HAL_PIXEL_FORMAT_YCbCr_420_P are not defined in Android.
+ * To enable Mali DDK EGLImage support for those formats, we are defining SUPPORT_LEGACY_FORMAT which is used by DDK
+ * formats codes here.
+ *
+ * We are not using HAL_PIXEL_FORMAT_YCbCr_420_P format, so just define to its fourcc
+ *
+ * We are treating HAL_PIXEL_FORMAT_YCbCr_420_888 as NV12 for our platform,
+ * define HAL_PIXEL_FORMAT_YCbCr_420_SP as HAL_PIXEL_FORMAT_YCbCr_420_888
+ */
+#define SUPPORT_LEGACY_FORMAT
+#define HAL_PIXEL_FORMAT_YCbCr_420_SP 	HAL_PIXEL_FORMAT_YCbCr_420_888
+#define HAL_PIXEL_FORMAT_YCbCr_420_P 	0x56555949 // fourcc for I420, same as YU12
+
 #ifdef MALI_600
 #define GRALLOC_ARM_UMP_MODULE 0
 #define GRALLOC_ARM_DMA_BUF_MODULE 1
