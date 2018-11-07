@@ -487,6 +487,17 @@ static int alloc_device_alloc(alloc_device_t *dev, int w, int h, int format, int
 				return -EINVAL;
 		}
 	}
+	else if (format == HAL_PIXEL_FORMAT_BLOB)
+	{
+		if (h != 1)
+		{
+			ALOGE("ERROR: Height for HAL_PIXEL_FORMAT_BLOB must be 1.");
+			return -EINVAL;
+		}
+		stride = 0;
+		size = w;
+		bpp = 0;
+	}
 	else
 	{
 		switch (format)
