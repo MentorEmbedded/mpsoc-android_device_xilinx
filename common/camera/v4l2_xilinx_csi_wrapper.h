@@ -38,7 +38,7 @@ namespace v4l2_camera_hal {
 
 class V4L2XilinxCsiWrapper: public V4L2Wrapper {
  public:
-  V4L2XilinxCsiWrapper(const std::string device_path);
+  static V4L2XilinxCsiWrapper* NewV4L2XilinxCsiWrapper(const std::string device_path);
   ~V4L2XilinxCsiWrapper();
 
   // Manage format.
@@ -67,6 +67,8 @@ class V4L2XilinxCsiWrapper: public V4L2Wrapper {
 
   int RequestBuffers(uint32_t num_buffers);
  private:
+  V4L2XilinxCsiWrapper(const std::string device_path);
+
   // Finds /dev/v4l-subdevX devices for CSI pipeline
   // Returns -1 on error, 0 otherwise
   // locks on subdevs_lock_

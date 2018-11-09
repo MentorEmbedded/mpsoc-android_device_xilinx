@@ -38,7 +38,7 @@ namespace v4l2_camera_hal {
 
 class V4L2GenericWrapper: public V4L2Wrapper {
  public:
-  V4L2GenericWrapper(const std::string device_path);
+  static V4L2GenericWrapper* NewV4L2GenericWrapper(const std::string device_path);
   ~V4L2GenericWrapper();
 
   int StreamOff();  
@@ -60,6 +60,8 @@ class V4L2GenericWrapper: public V4L2Wrapper {
   int RequestBuffers(uint32_t num_buffers);
 
  private:
+  V4L2GenericWrapper(const std::string device_path);
+
   // Lock protecting use of the buffer tracker.
   std::mutex buffer_queue_lock_;
 
@@ -80,6 +82,8 @@ class V4L2GenericWrapper: public V4L2Wrapper {
   // |buffers_.size()| will always be the maximum number of buffers this device
   // can handle in its current format.
   std::vector<RequestContext> buffers_;
+
+  friend class V4L2WrapperMock;
 
   DISALLOW_COPY_AND_ASSIGN(V4L2GenericWrapper);
 };
