@@ -66,6 +66,10 @@ const int32_t kStandardSizes[][2] = {
   { 176,  144}  // QCIF
 };
 
+V4L2XilinxHdmiWrapper* V4L2XilinxHdmiWrapper::NewV4L2XilinxHdmiWrapper(const std::string device_path) {
+  return new V4L2XilinxHdmiWrapper(device_path);
+}
+
 V4L2XilinxHdmiWrapper::V4L2XilinxHdmiWrapper(const std::string device_path) :
   V4L2Wrapper(device_path) {
 }

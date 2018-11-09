@@ -64,14 +64,14 @@ V4L2Wrapper* V4L2Wrapper::NewV4L2Wrapper(const std::string device_path) {
   property_get("xlnx.v4l2.hdmi.device", prop, "/dev/video0");
 
   if (device_path.compare(prop) == 0)
-   return new V4L2XilinxHdmiWrapper(device_path);
+   return V4L2XilinxHdmiWrapper::NewV4L2XilinxHdmiWrapper(device_path);
   
   property_get("xlnx.v4l2.csi.device", prop, "/dev/video4");
 
   if (device_path.compare(prop) == 0)
-    return new V4L2XilinxCsiWrapper(device_path);
+    return V4L2XilinxCsiWrapper::NewV4L2XilinxCsiWrapper(device_path);
 
-  return new V4L2GenericWrapper(device_path);
+  return V4L2GenericWrapper::NewV4L2GenericWrapper(device_path);
 }
 
 V4L2Wrapper::V4L2Wrapper(const std::string device_path)
