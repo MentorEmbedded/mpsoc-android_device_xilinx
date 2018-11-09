@@ -143,7 +143,7 @@ uint32_t StreamFormat::HalToV4L2PixelFormat(int hal_pixel_format) {
       HAL_LOGV("Pixel format 0x%x is unsupported.", hal_pixel_format);
       break;
   }
-  return -1;
+  return 0;
 }
 
 // Copy the qualified format into out_format and return true if there is a
