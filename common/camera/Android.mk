@@ -30,6 +30,7 @@ v4l2_shared_libs := \
   liblog \
   libsync \
   libutils \
+  libion \
 
 v4l2_static_libs := \
   libyuv_static \
@@ -39,6 +40,7 @@ v4l2_cflags := -fno-short-enums -Wall -Wno-error -Wextra -fvisibility=hidden -DH
 
 v4l2_c_includes := $(call include-path-for, camera) \
   external/libyuv/files/include \
+  system/core/libion \
 
 v4l2_src_files := \
   arc/cached_frame.cpp \
@@ -63,6 +65,7 @@ v4l2_src_files := \
   v4l2_generic_wrapper.cpp \
   v4l2_xilinx_hdmi_wrapper.cpp \
   v4l2_xilinx_csi_wrapper.cpp \
+  v4l2_ion_allocator.cpp \
 
 v4l2_test_files := \
   format_metadata_factory_test.cpp \
