@@ -40,9 +40,12 @@
 
 #include "arc/cached_frame.h"
 
+#include <gralloc_priv.h>
+
 // FIX ME: Xilinx's specific definition is not in kernel-headers yet
 #define MEDIA_BUS_FMT_VYYUYY8_1X24    0x202c
 
+#define ION_CMA_HEAP   (char*)"reserved"
 namespace v4l2_camera_hal {
 
 using arc::V4L2MmapedFrameBuffer;
@@ -67,12 +70,18 @@ const int32_t kStandardSizes[][2] = {
 };
 
 V4L2XilinxHdmiWrapper* V4L2XilinxHdmiWrapper::NewV4L2XilinxHdmiWrapper(const std::string device_path) {
-  return new V4L2XilinxHdmiWrapper(device_path);
+  std::unique_ptr<V4L2IonAllocator> ion_alloc(V4L2IonAllocator::NewV4L2IonAllocator(ION_CMA_HEAP));
+  if (!ion_alloc) {
+    HAL_LOGE("Failed to initialize ION allocator helper.");
+    return nullptr;
+  }
+  return new V4L2XilinxHdmiWrapper(device_path, std::move(ion_alloc));
 }
 
-V4L2XilinxHdmiWrapper::V4L2XilinxHdmiWrapper(const std::string device_path) :
-  V4L2Wrapper(device_path) {
-}
+V4L2XilinxHdmiWrapper::V4L2XilinxHdmiWrapper(const std::string device_path,
+  std::unique_ptr<V4L2IonAllocator> ion_alloc) :
+  V4L2Wrapper(device_path),
+  ion_alloc_(std::move(ion_alloc)) {}
 
 V4L2XilinxHdmiWrapper::~V4L2XilinxHdmiWrapper() {}
 
@@ -158,7 +167,7 @@ int V4L2XilinxHdmiWrapper::InitScalerSource() {
       HAL_LOGE("Failed to open HDMI RX subdevice %s", hdmi_rx_dev_path_.c_str());
       return -ENODEV;
   }
-  base::ScopedFD rx_fd(fd);
+  android::base::unique_fd rx_fd(fd);
 
   // Get current HDMI input resolution
   struct v4l2_dv_timings timings;
@@ -187,7 +196,7 @@ int V4L2XilinxHdmiWrapper::InitScalerSource() {
       HAL_LOGE("Failed to open scaler subdevice %s", scaler_dev_path_.c_str());
       return -ENODEV;
   }
-  base::ScopedFD scaler_fd(fd);
+  android::base::unique_fd scaler_fd(fd);
 
   // Use format we received from HDMI RX
   // pad 0 (Sink) is connected to HDMI RX
@@ -208,13 +217,13 @@ int V4L2XilinxHdmiWrapper::Connect() {
   // Do it each time on Connect() to be sure we
   // use proper nodes
   int ret = FindSubdevices();
-  if(ret){
-    HAL_LOGE("Failed to find required v4l-subdevives");
+  if (ret) {
+    HAL_LOGE("Failed to find required v4l-subdevices");
     return ret;
   }
 
   ret = InitScalerSource();
-  if(ret){
+  if (ret) {
     HAL_LOGE("Failed to initialize video scaler");
     return ret;
   }
@@ -236,9 +245,9 @@ void V4L2XilinxHdmiWrapper::Disconnect() {
 
 int V4L2XilinxHdmiWrapper::GetFormats(std::set<uint32_t>* v4l2_formats) {
   HAL_LOG_ENTER();
+  v4l2_formats->insert(V4L2_PIX_FMT_NV12);
   v4l2_formats->insert(V4L2_PIX_FMT_YUYV);
   v4l2_formats->insert(V4L2_PIX_FMT_UYVY);
-  v4l2_formats->insert(V4L2_PIX_FMT_NV12);
   v4l2_formats->insert(V4L2_PIX_FMT_BGR24);
   v4l2_formats->insert(V4L2_PIX_FMT_RGB24);
   return 0;
@@ -319,7 +328,7 @@ int V4L2XilinxHdmiWrapper::SetScalerFormat(const StreamFormat& format) {
       HAL_LOGE("Failed to open scaler subdevice %s", scaler_dev_path_.c_str());
       return -ENODEV;
   }
-  base::ScopedFD scaler_fd(fd);
+  android::base::unique_fd scaler_fd(fd);
 
   // set format
   struct v4l2_subdev_format fmt_req;
@@ -360,7 +369,6 @@ int V4L2XilinxHdmiWrapper::SetFormat(const StreamFormat& desired_format,
       return res;
     }
   }
-
 
   // Select the matching format, or if not available, select a qualified format
   // we can convert from.
@@ -405,7 +413,7 @@ int V4L2XilinxHdmiWrapper::SetFormat(const StreamFormat& desired_format,
   format_.reset(new StreamFormat(new_format));
 
   // Format changed, request new buffers.
-  res = RequestBuffers(2);
+  res = RequestBuffers(1);
   if (res) {
     HAL_LOGE("Requesting buffers for new format failed.");
     return res;
@@ -444,25 +452,41 @@ int V4L2XilinxHdmiWrapper::EnqueueRequest(
   // Set up a v4l2 buffer struct.
   v4l2_buffer device_buffer;
   memset(&device_buffer, 0, sizeof(device_buffer));
-
   device_buffer.type = format_->type();
   device_buffer.index = index;
-  device_buffer.memory = V4L2_MEMORY_MMAP;
-  // Use QUERYBUF to ensure our buffer/device is in good shape,
-  // and fill out remaining fields.
-  if (IoctlLocked(VIDIOC_QUERYBUF, &device_buffer) < 0) {
-    HAL_LOGE("QUERYBUF fails: %s", strerror(errno));
-    // Return buffer index.
-    std::lock_guard<std::mutex> guard(buffer_queue_lock_);
-    buffers_[index].active = false;
-    return -ENODEV;
-  }
+  device_buffer.memory = V4L2_MEMORY_DMABUF;
 
   // Setup our request context
   XilinxRequestContext* request_context;
   {
     std::lock_guard<std::mutex> guard(buffer_queue_lock_);
+    const camera3_stream_buffer_t* stream_buffer =
+        &request->output_buffers[0];
+
+    private_handle_t const *hnd = reinterpret_cast<private_handle_t const *>(
+        *request->output_buffers[0].buffer);
+
+    uint32_t v4l_fourcc = StreamFormat::HalToV4L2PixelFormat(stream_buffer->stream->format);
+    if (v4l_fourcc == 0) {
+      HAL_LOGE("Cannot enqueue buffer: cannot convert HAL pixel format to V4L2");
+      return -EINVAL;
+    }
+  
+    const StreamFormat output_format(stream_buffer->stream->format, 
+        stream_buffer->stream->width,
+        stream_buffer->stream->height);
+
     request_context = &buffers_[index];
+    
+    if (output_format == *format_) {
+      // output buffer has the same format
+      // no conversion needed
+      request_context->conversion_needed = false;
+      device_buffer.m.fd = hnd->share_fd;
+    } else {
+      request_context->conversion_needed = true;
+      device_buffer.m.fd = request_context->camera_buffer->GetFd();
+    }
     request_context->request = request;
   }
 
@@ -474,7 +498,7 @@ int V4L2XilinxHdmiWrapper::EnqueueRequest(
 
   // Mark the buffer as in flight.
   std::lock_guard<std::mutex> guard(buffer_queue_lock_);
-  buffers_[index].active = true;
+  request_context->active = true;
 
   return 0;
 }
@@ -490,7 +514,7 @@ int V4L2XilinxHdmiWrapper::DequeueRequest(std::shared_ptr<CaptureRequest>* reque
   v4l2_buffer buffer;
   memset(&buffer, 0, sizeof(buffer));
   buffer.type = format_->type();
-  buffer.memory = V4L2_MEMORY_MMAP;
+  buffer.memory = V4L2_MEMORY_DMABUF;
   int res = IoctlLocked(VIDIOC_DQBUF, &buffer);
   if (res) {
     if (errno == EAGAIN) {
@@ -503,9 +527,8 @@ int V4L2XilinxHdmiWrapper::DequeueRequest(std::shared_ptr<CaptureRequest>* reque
     }
   }
   std::lock_guard<std::mutex> guard(buffer_queue_lock_);
-  XilinxRequestContext* request_context = &buffers_[buffer.index];
 
-  // Lock the camera stream buffer for painting.
+  XilinxRequestContext* request_context = &buffers_[buffer.index];
   const camera3_stream_buffer_t* stream_buffer =
       &request_context->request->output_buffers[0];
   uint32_t fourcc =
@@ -513,35 +536,37 @@ int V4L2XilinxHdmiWrapper::DequeueRequest(std::shared_ptr<CaptureRequest>* reque
   if (request) {
     *request = request_context->request;
   }
-  // Note that the device buffer length is passed to the output frame. If the
-  // GrallocFrameBuffer does not have support for the transformation to
-  // |fourcc|, it will assume that the amount of data to lock is based on
-  // |buffer.length|, otherwise it will use the ImageProcessor::ConvertedSize.
-  arc::GrallocFrameBuffer output_frame(
-      *stream_buffer->buffer, stream_buffer->stream->width,
-      stream_buffer->stream->height, fourcc, buffer.length,
-      stream_buffer->stream->usage);
-  res = output_frame.Map();
-  if (res) {
-    HAL_LOGE("Failed to map output frame.");
-    request_context->request.reset();
-    return -EINVAL;
-  }
 
-  if (request_context->camera_buffer->GetFourcc() == fourcc &&
-      request_context->camera_buffer->GetWidth() ==
-          stream_buffer->stream->width &&
-      request_context->camera_buffer->GetHeight() ==
-          stream_buffer->stream->height) {
-    // If no format conversion needs to be applied, directly copy the data over.
-    memcpy(output_frame.GetData(), request_context->camera_buffer->GetData(),
-           request_context->camera_buffer->GetDataSize());
-  } else {
+  if (request_context->conversion_needed) {
+    //we need to mmap both camera and output buffers here and perform conversion
+
+    // Note that the device buffer length is passed to the output frame. If the
+    // GrallocFrameBuffer does not have support for the transformation to
+    // |fourcc|, it will assume that the amount of data to lock is based on
+    // |buffer.length|, otherwise it will use the ImageProcessor::ConvertedSize.
+    arc::GrallocFrameBuffer output_frame(
+        *stream_buffer->buffer, stream_buffer->stream->width,
+        stream_buffer->stream->height, fourcc, buffer.length,
+        stream_buffer->stream->usage);
+    res = output_frame.Map();
+    if (res) {
+      HAL_LOGE("Failed to map output frame.");
+      request_context->request.reset();
+      return -EINVAL;
+    }
+
+    if (request_context->camera_buffer->Map()) {
+      HAL_LOGE("Failed to map camera frame.");
+      request_context->request.reset();
+      return -EINVAL;      
+    }
     // Perform the format conversion.
     arc::CachedFrame cached_frame;
     cached_frame.SetSource(request_context->camera_buffer.get(), 0);
     cached_frame.Convert(request_context->request->settings, &output_frame);
+    request_context->camera_buffer->Unmap();
   }
+
   request_context->request.reset();
   // Mark the buffer as not in flight.
   request_context->active = false;
@@ -557,7 +582,7 @@ int V4L2XilinxHdmiWrapper::RequestBuffers(uint32_t num_requested) {
   v4l2_requestbuffers req_buffers;
   memset(&req_buffers, 0, sizeof(req_buffers));
   req_buffers.type = format_->type();
-  req_buffers.memory = V4L2_MEMORY_MMAP;
+  req_buffers.memory = V4L2_MEMORY_DMABUF;
   req_buffers.count = num_requested;
 
   int res = IoctlLocked(VIDIOC_REQBUFS, &req_buffers);
@@ -574,14 +599,16 @@ int V4L2XilinxHdmiWrapper::RequestBuffers(uint32_t num_requested) {
   }
 
   buffers_.resize(req_buffers.count);
-
+  // setup camera_buffers
+  // allocate dma-capable buffers using ION allocator.
+  // buffers will be used only in case if format conversion is needed
   for (size_t i = 0; i < buffers_.size(); ++i) {
     if (!buffers_[i].active) {
       struct v4l2_buffer device_buffer;
       memset(&device_buffer, 0, sizeof(device_buffer));
       device_buffer.type = format_->type();
       device_buffer.index = i;
-      device_buffer.memory = V4L2_MEMORY_MMAP;
+      device_buffer.memory = V4L2_MEMORY_DMABUF;
       if (IoctlLocked(VIDIOC_QUERYBUF, &device_buffer) < 0) {
         HAL_LOGE("QUERYBUF fails: %s", strerror(errno));
         return -ENODEV;
@@ -592,12 +619,13 @@ int V4L2XilinxHdmiWrapper::RequestBuffers(uint32_t num_requested) {
       request_context->camera_buffer->SetFourcc(format_->v4l2_pixel_format());
       request_context->camera_buffer->SetWidth(format_->width());
       request_context->camera_buffer->SetHeight(format_->height());
-      request_context->camera_buffer->SetFd(device_fd_.get());
-      request_context->camera_buffer->SetOffset(device_buffer.m.offset);
-      if (request_context->camera_buffer->Map()){
-        HAL_LOGE("Buffer Map() fails");
-        return -ENODEV;
+
+      int fd = ion_alloc_->AllocateDmaFd(device_buffer.length);
+      if (fd < 0) {
+        HAL_LOGE("Failed to setup request context");
+        return -ENOMEM;
       }
+      request_context->camera_buffer->SetFd(fd);
     }
   }
   return 0;

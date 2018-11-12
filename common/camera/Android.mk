@@ -40,6 +40,7 @@ v4l2_cflags := -fno-short-enums -Wall -Wno-error -Wextra -fvisibility=hidden -DH
 
 v4l2_c_includes := $(call include-path-for, camera) \
   external/libyuv/files/include \
+  device/xilinx/common/gralloc \
   system/core/libion \
 
 v4l2_src_files := \
