@@ -28,6 +28,8 @@
 
 #include "v4l2_wrapper.h"
 
+#include "v4l2_ion_allocator.h"
+
 #include "arc/common_types.h"
 #include "arc/frame_buffer.h"
 #include "capture_request.h"
@@ -67,7 +69,8 @@ class V4L2XilinxCsiWrapper: public V4L2Wrapper {
 
   int RequestBuffers(uint32_t num_buffers);
  private:
-  V4L2XilinxCsiWrapper(const std::string device_path);
+  V4L2XilinxCsiWrapper(const std::string device_path,
+                       std::unique_ptr<V4L2IonAllocator> ion_alloc);
 
   // Finds /dev/v4l-subdevX devices for CSI pipeline
   // Returns -1 on error, 0 otherwise
@@ -137,12 +140,20 @@ class V4L2XilinxCsiWrapper: public V4L2Wrapper {
    public:
     XilinxRequestContext()
         : active(false),
-          camera_buffer(std::make_shared<arc::V4L2MmapedFrameBuffer>()){};
+          conversion_needed(false),
+          camera_buffer(std::make_shared<arc::V4L2DmaFrameBuffer>()){};
     ~XilinxRequestContext(){};
     // Indicates whether this request context is in use.
     bool active;
+
+    // flag indicating that camera_buffer's and output_buffer formats do not match.
+    // In this case capture results will be stored in camera_buffer.
+    // If formats do match, then capture results will be directly DMAed
+    // to output_buffer
+    bool conversion_needed;
+
     // Buffer handles of the context.
-    std::shared_ptr<arc::V4L2MmapedFrameBuffer> camera_buffer;
+    std::shared_ptr<arc::V4L2DmaFrameBuffer> camera_buffer;
     std::shared_ptr<default_camera_hal::CaptureRequest> request;
   };
 
@@ -161,6 +172,8 @@ class V4L2XilinxCsiWrapper: public V4L2Wrapper {
   std::string dmsc_dev_path_;
   // all access to subdevs should be protected with this lock
   std::mutex subdevs_lock_;
+
+  std::unique_ptr<V4L2IonAllocator> ion_alloc_;
 
   DISALLOW_COPY_AND_ASSIGN(V4L2XilinxCsiWrapper);
 };
