@@ -60,23 +60,28 @@ int AllocatedFrameBuffer::SetDataSize(size_t size) {
 
 void AllocatedFrameBuffer::Reset() { memset(data_, 0, buffer_size_); }
 
-V4L2FrameBuffer::V4L2FrameBuffer(base::ScopedFD fd, int buffer_size,
-                                 uint32_t width, uint32_t height,
-                                 uint32_t fourcc)
-    : fd_(std::move(fd)), is_mapped_(false) {
-  buffer_size_ = buffer_size;
-  width_ = width;
-  height_ = height;
-  fourcc_ = fourcc;
+V4L2DmaFrameBuffer::V4L2DmaFrameBuffer()
+    : fd_(-1), is_mapped_(false) {
 }
 
-V4L2FrameBuffer::~V4L2FrameBuffer() {
+V4L2DmaFrameBuffer::~V4L2DmaFrameBuffer() {
   if (Unmap()) {
     LOGF(ERROR) << "Unmap failed";
   }
 }
 
-int V4L2FrameBuffer::Map() {
+int V4L2DmaFrameBuffer::SetDataSize(size_t size) {
+  base::AutoLock l(lock_);
+  if (is_mapped_){
+    LOGF(ERROR) << "The buffer is already mapped. Cannot set size";
+    return -EINVAL;
+  }
+  buffer_size_ = size;
+  data_size_ = size;
+  return 0;
+}
+
+int V4L2DmaFrameBuffer::Map() {
   base::AutoLock l(lock_);
   if (is_mapped_) {
     LOGF(ERROR) << "The buffer is already mapped";
@@ -92,7 +97,7 @@ int V4L2FrameBuffer::Map() {
   return 0;
 }
 
-int V4L2FrameBuffer::Unmap() {
+int V4L2DmaFrameBuffer::Unmap() {
   base::AutoLock l(lock_);
   if (is_mapped_ && munmap(data_, buffer_size_)) {
     LOGF(ERROR) << "mummap() failed: " << strerror(errno);
@@ -100,6 +105,27 @@ int V4L2FrameBuffer::Unmap() {
   }
   is_mapped_ = false;
   return 0;
+}
+
+int V4L2DmaFrameBuffer::SetFd(int fd){
+  base::AutoLock l(lock_);
+  if (is_mapped_){
+    LOGF(ERROR) << "The buffer is already mapped. Cannot set DMA FD";
+    return -EINVAL;
+  }
+  if (fd < 0){
+    LOGF(ERROR) << "Bad DMA FD: " << fd;
+    return -EINVAL;
+  }
+  fd_.reset(fd);
+  return 0;
+}
+
+void V4L2DmaFrameBuffer::Reset() {
+  base::AutoLock l(lock_);
+  if(is_mapped_){
+    Unmap();
+  }
 }
 
 GrallocFrameBuffer::GrallocFrameBuffer(buffer_handle_t buffer, uint32_t width,
