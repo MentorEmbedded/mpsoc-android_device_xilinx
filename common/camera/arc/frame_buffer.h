@@ -11,7 +11,7 @@
 #include <memory>
 #include <string>
 
-#include <base/files/scoped_file.h>
+#include <android-base/unique_fd.h>
 #include <base/synchronization/lock.h>
 
 #include <hardware/gralloc.h>
@@ -78,22 +78,26 @@ class AllocatedFrameBuffer : public FrameBuffer {
   std::unique_ptr<uint8_t[]> buffer_;
 };
 
-// V4L2FrameBuffer is used for the buffer from V4L2CameraDevice. Maps the fd
+// V4L2DmaFrameBuffer is used for the buffer from V4L2CameraDevice. Maps the fd
 // in constructor. Unmaps and closes the fd in destructor.
-class V4L2FrameBuffer : public FrameBuffer {
+class V4L2DmaFrameBuffer : public FrameBuffer {
  public:
-  V4L2FrameBuffer(base::ScopedFD fd, int buffer_size, uint32_t width,
-                  uint32_t height, uint32_t fourcc);
+  V4L2DmaFrameBuffer();
   // Unmaps |data_| and closes |fd_|.
-  ~V4L2FrameBuffer();
+  ~V4L2DmaFrameBuffer();
 
   int Map() override;
   int Unmap() override;
+  int SetFd(int fd);
+  void SetWidth(uint32_t width) { width_ = width; }
+  void SetHeight(uint32_t height) { height_ = height; }
+  int SetDataSize(size_t data_size) override;
   int GetFd() const { return fd_.get(); }
-
+  // Unmaps |data_| and closes |fd_|.
+  void Reset();
  private:
   // File descriptor of V4L2 frame buffer.
-  base::ScopedFD fd_;
+  android::base::unique_fd fd_;
 
   bool is_mapped_;
 
