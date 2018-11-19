@@ -31,8 +31,9 @@ on post-fs
 
     # Configure hwcomposer
     setprop ro.hardware.hwcomposer drm
-    setprop hwc.drm.use_framebuffer_target 1
     setprop hwc.drm.use_overlay_planes 0
+    # set DRM device to HDMI
+    setprop hwc.drm.device /dev/dri/card1
 
     # Initialize VCU
     insmod /system/vendor/modules/xlnx_vcu.ko
@@ -47,8 +48,20 @@ on post-fs
     insmod /system/vendor/modules/xilinx-hdmi-tx.ko
     insmod /system/vendor/modules/xilinx-hdmi-rx.ko
 
-    # set DRM device to HDMI
-    setprop hwc.drm.device /dev/dri/card1
+    # set properties for Camera-HAL
+    # should be in sync with VCU TRD DTS
+    setprop xlnx.v4l2.hdmi.device /dev/video0
+    setprop xlnx.v4l2.csi.device /dev/video4
+    setprop xlnx.v4l2.csi.main_dts_name     vcap_csi
+    setprop xlnx.v4l2.csi.scaler_dts_name   a0200000.scaler
+    setprop xlnx.v4l2.csi.csc_dts_name      a0240000.csc
+    setprop xlnx.v4l2.csi.gamma_dts_name    a0270000.v_gamma
+    setprop xlnx.v4l2.csi.dmsc_dts_name     a0250000.v_demosaic
+    setprop xlnx.v4l2.csi.csiss_dts_name    a00f0000.csiss
+    setprop xlnx.v4l2.csi.sensor_dts_name   IMX274
+    setprop xlnx.v4l2.hdmi.main_dts_name    vcap_hdmi_1
+    setprop xlnx.v4l2.hdmi.scaler_dts_name  a0080000.scaler
+    setprop xlnx.v4l2.hdmi.rx_dts_name      a0000000.hdmi_rx_ss
 
     chown graphics graphics /sys/kernel/debug/sync/sw_sync
     chmod 777 /sys/kernel/debug/sync/sw_sync
