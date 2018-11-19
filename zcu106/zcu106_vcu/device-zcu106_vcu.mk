@@ -38,6 +38,11 @@ PRODUCT_COPY_FILES += \
     frameworks/av/media/libstagefright/data/media_codecs_google_video.xml:system/etc/media_codecs_google_video.xml \
     device/xilinx/zcu106/zcu106_vcu/media_codecs.xml:system/etc/media_codecs.xml
 
+# Copy camera configs
+PRODUCT_COPY_FILES +=  \
+    frameworks/native/data/etc/android.hardware.camera.xml:system/etc/android.hardware.camera.xml \
+    device/xilinx/zcu106/zcu106_vcu/media_profiles.xml:system/etc/media_profiles.xml
+
 # Copy bootloader envs
 PRODUCT_COPY_FILES += \
    $(LOCAL_PATH)/uEnv.txt:boot/uEnv.txt
@@ -70,3 +75,12 @@ KERNEL_MODULES += \
 # Default OMX service to non-Treble
 PRODUCT_PROPERTY_OVERRIDES += \
     persist.media.treble_omx=false
+
+# Add camera-related packages
+PRODUCT_PACKAGES += \
+	android.hardware.camera.provider@2.4-impl \
+	camera.device@3.2-impl \
+	TestingCamera2 \
+	camera.zynqmp
+
+PRODUCT_PROPERTY_OVERRIDES += ro.hardware.camera=zynqmp
