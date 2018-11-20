@@ -93,7 +93,10 @@ int GetV4L2Metadata(std::shared_ptr<V4L2Wrapper> device,
   components.insert(
       NoEffectMenuControl<uint8_t>(ANDROID_CONTROL_AF_MODE,
                                    ANDROID_CONTROL_AF_AVAILABLE_MODES,
-                                   {ANDROID_CONTROL_AF_MODE_OFF}));
+                                   {ANDROID_CONTROL_AF_MODE_OFF,
+                                    ANDROID_CONTROL_AF_MODE_AUTO,
+                                    ANDROID_CONTROL_AF_MODE_CONTINUOUS_VIDEO,
+                                    ANDROID_CONTROL_AF_MODE_CONTINUOUS_PICTURE}));
   // TODO(b/31021522): Should read autofocus state from
   // V4L2_CID_AUTO_FOCUS_STATUS bitmask. The framework gets a little more
   // complex than that does; there's a whole state-machine table in
