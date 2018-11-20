@@ -330,6 +330,11 @@ int V4L2Camera::setupStreams(camera3_stream_configuration_t* stream_config) {
   uint32_t width = stream->width;
   uint32_t height = stream->height;
 
+  // Override HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED format.
+  if (stream->format == HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED) {
+    stream->format = HAL_PIXEL_FORMAT_YCbCr_420_888;
+  }
+
   if (stream_config->num_streams > 1) {
     // TODO(b/29939583):  V4L2 doesn't actually support more than 1
     // stream at a time. If not all streams are the same format
@@ -338,6 +343,10 @@ int V4L2Camera::setupStreams(camera3_stream_configuration_t* stream_config) {
     // since it isn't a spec-valid error validation isn't set up to check it.
     for (uint32_t i = 1; i < stream_config->num_streams; ++i) {
       stream = stream_config->streams[i];
+      // Override HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED format.
+      if (stream->format == HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED) {
+        stream->format = HAL_PIXEL_FORMAT_YCbCr_420_888;
+      }
       if (stream->format != format || stream->width != width ||
           stream->height != height) {
         HAL_LOGE(
@@ -382,21 +391,18 @@ int V4L2Camera::setupStreams(camera3_stream_configuration_t* stream_config) {
   for (uint32_t i = 0; i < stream_config->num_streams; ++i) {
     stream = stream_config->streams[i];
 
-    // Override HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED format.
-    if (stream->format == HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED) {
-      stream->format = HAL_PIXEL_FORMAT_RGBA_8888;
-    }
-
     // Max buffers as reported by the device.
     stream->max_buffers = max_buffers;
 
-    // Usage: currently using sw graphics.
     switch (stream->stream_type) {
       case CAMERA3_STREAM_INPUT:
         stream->usage = GRALLOC_USAGE_SW_READ_OFTEN;
         break;
       case CAMERA3_STREAM_OUTPUT:
-        stream->usage = GRALLOC_USAGE_SW_WRITE_OFTEN;
+        stream->usage = GRALLOC_USAGE_HW_CAMERA_WRITE;
+        // we'll need to use conversion for non HAL_PIXEL_FORMAT_YCbCr_420_888
+        if (stream->format != HAL_PIXEL_FORMAT_YCbCr_420_888)
+          stream->usage |= GRALLOC_USAGE_SW_WRITE_OFTEN;
         break;
       case CAMERA3_STREAM_BIDIRECTIONAL:
         stream->usage =
