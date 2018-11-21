@@ -1,6 +1,8 @@
 bootargs=init=/init video=DP-1:1920x1080 androidboot.selinux=permissive androidboot.hardware=ultrazed-eg console=ttyPS0,115200 firmware_class.path=/system/etc/firmware
 dtb_name=zynqmp-ultrazed-eg-iocc.dtb
 uramdisk_addr=0x10000000
+kernel_addr=0x80000
+fdt_addr=4000000
 load_fpga=load mmc 0:1 0x200000 bitstream.bit && fpga loadb 0 0x200000 $filesize
 load_kernel=load mmc $sdbootdev:$partid $kernel_addr Image
 load_dtb=load mmc $sdbootdev:$partid $fdt_addr $dtb_name
