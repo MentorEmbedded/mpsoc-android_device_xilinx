@@ -5,8 +5,6 @@ if [ $# -lt 1 ]; then
 	echo " "
 	echo "product   - Android build product name. Default is zcu102"
 	echo "            Used to find folder with build results"
-	echo "silicon   - Silicon revision of the SoC on the board."
-	echo "            es1 or es2. Default is es1"
 	exit -1 ;
 fi
 
@@ -14,19 +12,6 @@ if [ $# -ge 2 ]; then
 	product=$2;
 else
 	product=zcu102;
-fi
-
-if [ $# -ge 3 ]; then
-	silicon=$3;
-else
-	silicon=es1;
-fi
-
-if [[ ! "$silicon" == "es1" ]]; then
-	if [[ ! "$silicon" == "es2" ]]; then
-		echo "!!! Error: silicon revision must be es1 or es2";
-		exit 1;
-	fi
 fi
 
 echo "========= build SD card for product $product";
@@ -161,15 +146,6 @@ if [ -e ${diskname}${prefix}5 ]; then
 	sudo e2label ${diskname}${prefix}5 SYSTEM
 	sudo e2fsck -f ${diskname}${prefix}5
 	sudo resize2fs ${diskname}${prefix}5
-	if [[ "$silicon" == "es1" ]]; then
-		mkdir -p /tmp/$$/system_part
-		mount -t ext4 ${diskname}${prefix}5 /tmp/$$/system_part
-		sudo mv /tmp/$$/system_part/lib/egl/libGLES_mali.so_es1 /tmp/$$/system_part/lib/egl/libGLES_mali.so
-		sudo mv /tmp/$$/system_part/lib64/egl/libGLES_mali.so_es1 /tmp/$$/system_part/lib64/egl/libGLES_mali.so
-		sync
-		umount /tmp/$$/system_part
-		rm -rf /tmp/$$/system_part
-	fi
 else
 	echo "!!! Error: missing SYSTEM partition ${diskname}${prefix}5";
 	exit 1
