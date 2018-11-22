@@ -413,7 +413,7 @@ int V4L2XilinxHdmiWrapper::SetFormat(const StreamFormat& desired_format,
   format_.reset(new StreamFormat(new_format));
 
   // Format changed, request new buffers.
-  res = RequestBuffers(1);
+  res = RequestBuffers(4);
   if (res) {
     HAL_LOGE("Requesting buffers for new format failed.");
     return res;
