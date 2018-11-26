@@ -66,7 +66,9 @@ PRODUCT_PACKAGES += \
     libOMX.allegro.video_encoder \
     omx_decoder \
     omx_encoder \
-    libstagefrighthw
+    libstagefrighthw \
+    recordvideo \
+    stagefright
 
 # Install required kernel modules
 KERNEL_MODULES += \
