@@ -294,7 +294,7 @@ static int out_get_presentation_position(const struct audio_stream_out *stream,
                                    uint64_t *frames, struct timespec *timestamp)
 {
     struct alsa_stream_out *out = (struct alsa_stream_out *)stream;
-    int ret = -1;
+    int ret = -ENODATA;
 
         if (out->pcm) {
             unsigned int avail;
