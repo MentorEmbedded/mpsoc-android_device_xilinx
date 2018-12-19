@@ -36,6 +36,8 @@ on post-fs
     setprop hwc.drm.device /dev/dri/card1
 
     # Initialize VCU
+    insmod /system/vendor/modules/xlnx_vcu_clk.ko
+    insmod /system/vendor/modules/xlnx_vcu_core.ko
     insmod /system/vendor/modules/xlnx_vcu.ko
     insmod /system/vendor/modules/allegro.ko
     insmod /system/vendor/modules/al5e.ko
@@ -43,7 +45,6 @@ on post-fs
 
     # Initialize HDMI
     insmod /system/vendor/modules/dp159.ko
-    insmod /system/vendor/modules/si5324.ko
     insmod /system/vendor/modules/xilinx-vphy.ko
     insmod /system/vendor/modules/xilinx-hdmi-tx.ko
     insmod /system/vendor/modules/xilinx-hdmi-rx.ko

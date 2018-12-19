@@ -72,7 +72,9 @@ PRODUCT_PACKAGES += \
 
 # Install required kernel modules
 KERNEL_MODULES += \
-    drivers/soc/xilinx/xlnx_vcu.ko
+    drivers/soc/xilinx/xlnx_vcu.ko \
+    drivers/soc/xilinx/xlnx_vcu_core.ko \
+    drivers/soc/xilinx/xlnx_vcu_clk.ko
 
 # Default OMX service to non-Treble
 PRODUCT_PROPERTY_OVERRIDES += \
