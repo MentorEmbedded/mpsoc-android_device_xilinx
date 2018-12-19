@@ -43,7 +43,6 @@ install_hdmi_modules: build_hdmi_modules
 	@cp $(HDMI_MODULES_OUT_DIR)/hdmi/xilinx-vphy.ko $(KERNEL_MODULES_OUT)
 	@cp $(HDMI_MODULES_OUT_DIR)/hdmi/xilinx-hdmi-tx.ko $(KERNEL_MODULES_OUT)
 	@cp $(HDMI_MODULES_OUT_DIR)/hdmi/xilinx-hdmi-rx.ko $(KERNEL_MODULES_OUT)
-	@cp $(HDMI_MODULES_OUT_DIR)/clk/si5324.ko $(KERNEL_MODULES_OUT)
 	@cp $(HDMI_MODULES_OUT_DIR)/misc/dp159.ko $(KERNEL_MODULES_OUT)
 
 .PHONY: hdmi_modules
