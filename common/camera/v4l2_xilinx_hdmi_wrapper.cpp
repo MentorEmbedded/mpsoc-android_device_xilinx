@@ -100,11 +100,11 @@ int V4L2XilinxHdmiWrapper::FindSubdevices() {
   // name of hdmi_rx subdevice
   char rx_device_name[PROPERTY_VALUE_MAX];
 
-  property_get("xlnx.v4l2.hdmi.main_dts_name", hdmi_device_name, "vcap_hdmi_1");
-  property_get("xlnx.v4l2.hdmi.scaler_dts_name", scaler_device_name, "a0080000.scaler");
-  property_get("xlnx.v4l2.hdmi.rx_dts_name", rx_device_name, "a0000000.hdmi_rx_ss");
+  property_get("xlnx.v4l2.hdmi.main_dts_name", hdmi_device_name, "vcap_hdmi");
+  property_get("xlnx.v4l2.hdmi.scaler_dts_name", scaler_device_name, "a0080000.v_proc_ss");
+  property_get("xlnx.v4l2.hdmi.rx_dts_name", rx_device_name, "a0000000.v_hdmi_rx_ss");
 
-  std::string sysfs_path = "/sys/devices/platform/amba/amba:";
+  std::string sysfs_path = "/sys/devices/platform/amba_pl@0/amba_pl@0:";
   sysfs_path += hdmi_device_name;
   sysfs_path += "/video4linux/";
 
@@ -132,7 +132,6 @@ int V4L2XilinxHdmiWrapper::FindSubdevices() {
         int ret = read(fd, tmp_name, PROPERTY_VALUE_MAX);
         if (ret <= 0)
           continue;
-
         if(!found_scaler && (strncmp(scaler_device_name, tmp_name, strlen(scaler_device_name)) == 0)){
           found_scaler = true;
           scaler_dev_path_ = "/dev/";
