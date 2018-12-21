@@ -40,9 +40,6 @@
 #include <hardware/audio_alsaops.h>
 #include <audio_effects/effect_aec.h>
 
-
-#define CARD_OUT 0
-#define PORT_CODEC 0
 /* Minimum granularity - Arbitrary but small value */
 #define CODEC_BASE_FRAME_COUNT 32
 
@@ -56,6 +53,10 @@
 #define CODEC_SAMPLING_RATE 48000
 #define CHANNEL_STEREO 2
 #define MIN_WRITE_SLEEP_US      5000
+
+static int pcm_card_out = 0;
+static int pcm_codec_out = 0;
+static int pcm_use_24bit = 0;
 
 struct stub_stream_in {
     struct audio_stream_in stream;
@@ -100,7 +101,7 @@ static int start_output_stream(struct alsa_stream_out *out)
     out->config.start_threshold = PLAYBACK_PERIOD_START_THRESHOLD * PERIOD_SIZE;
     out->config.avail_min = PERIOD_SIZE;
 
-    out->pcm = pcm_open(CARD_OUT, PORT_CODEC, PCM_OUT | PCM_MMAP | PCM_NOIRQ | PCM_MONOTONIC, &out->config);
+    out->pcm = pcm_open(pcm_card_out, pcm_codec_out, PCM_OUT | PCM_MONOTONIC, &out->config);
 
     if (!pcm_is_ready(out->pcm)) {
         ALOGE("cannot open pcm_out driver: %s", pcm_get_error(out->pcm));
@@ -122,7 +123,7 @@ static uint32_t out_get_sample_rate(const struct audio_stream *stream)
 
 static int out_set_sample_rate(struct audio_stream *stream, uint32_t rate)
 {
-    ALOGV("out_set_sample_rate: %d", 0);
+    //ALOGV("out_set_sample_rate: %d", 0);
     return -ENOSYS;
 }
 
@@ -267,7 +268,7 @@ static ssize_t out_write(struct audio_stream_out *stream, const void* buffer,
 
     pthread_mutex_unlock(&adev->lock);
 
-    ret = pcm_mmap_write(out->pcm, buffer, out_frames * frame_size);
+    ret = pcm_write(out->pcm, buffer, out_frames * frame_size);
     if (ret == 0) {
         out->written += out_frames;
     }
@@ -434,7 +435,7 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
     struct pcm_params *params;
     int ret = 0;
 
-    params = pcm_params_get(CARD_OUT, PORT_CODEC, PCM_OUT);
+    params = pcm_params_get(pcm_card_out, pcm_codec_out, PCM_OUT);
     if (!params)
         return -ENOSYS;
 
@@ -463,7 +464,10 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
 
     out->config.channels = CHANNEL_STEREO;
     out->config.rate = CODEC_SAMPLING_RATE;
-    out->config.format = PCM_FORMAT_S16_LE;
+    if (pcm_use_24bit)
+        out->config.format = PCM_FORMAT_S24_LE;
+    else
+        out->config.format = PCM_FORMAT_S16_LE;
     out->config.period_size = PERIOD_SIZE;
     out->config.period_count = PLAYBACK_PERIOD_COUNT;
 
@@ -649,6 +653,14 @@ static int adev_open(const hw_module_t* module, const char* name,
     adev = calloc(1, sizeof(struct alsa_audio_device));
     if (!adev)
         return -ENOMEM;
+
+    char prop[PROPERTY_VALUE_MAX];
+    property_get("xlnx.audio.card", prop, "0");
+    pcm_card_out = atoi(prop);
+    property_get("xlnx.audio.port", prop, "0");
+    pcm_codec_out = atoi(prop);
+    property_get("xlnx.audio.use_24bit", prop, "0");
+    pcm_use_24bit = atoi(prop);
 
     adev->hw_device.common.tag = HARDWARE_DEVICE_TAG;
     adev->hw_device.common.version = AUDIO_DEVICE_API_VERSION_2_0;
