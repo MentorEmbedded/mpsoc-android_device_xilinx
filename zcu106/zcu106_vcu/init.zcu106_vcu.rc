@@ -60,9 +60,9 @@ on post-fs
     setprop xlnx.v4l2.csi.dmsc_dts_name     a0250000.v_demosaic
     setprop xlnx.v4l2.csi.csiss_dts_name    a00f0000.csiss
     setprop xlnx.v4l2.csi.sensor_dts_name   IMX274
-    setprop xlnx.v4l2.hdmi.main_dts_name    vcap_hdmi_1
-    setprop xlnx.v4l2.hdmi.scaler_dts_name  a0080000.scaler
-    setprop xlnx.v4l2.hdmi.rx_dts_name      a0000000.hdmi_rx_ss
+    setprop xlnx.v4l2.hdmi.main_dts_name    vcap_hdmi
+    setprop xlnx.v4l2.hdmi.scaler_dts_name  a0080000.v_proc_ss
+    setprop xlnx.v4l2.hdmi.rx_dts_name      a0000000.v_hdmi_rx_ss
 
     # set properties for HDMI audio
     setprop xlnx.audio.card 1
