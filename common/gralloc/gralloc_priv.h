@@ -207,7 +207,11 @@ struct private_handle_t
 	int     fd; //Shallow copy, DO NOT duplicate
 	int     offset;
 
-	int	byte_stride;
+	int	byte_stride; // width-stride in bytes
+
+	// height with required alignment, used for VCU video buffers.
+	// Can be bigger than original requested height.
+	int	aligned_height;
 #if GRALLOC_ARM_DMA_BUF_MODULE
 	ion_user_handle_t ion_hnd;
 #endif

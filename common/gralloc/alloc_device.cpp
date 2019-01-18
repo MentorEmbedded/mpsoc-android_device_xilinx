@@ -130,7 +130,8 @@ static int gralloc_alloc_buffer(alloc_device_t *dev, size_t size, int usage, buf
 
 		if (m->gralloc_legacy_ion)
 		{
-			if ((usage & GRALLOC_USAGE_HW_FB) || (usage & GRALLOC_USAGE_HW_CAMERA_WRITE))
+			if ((usage & GRALLOC_USAGE_HW_FB) || (usage & GRALLOC_USAGE_HW_CAMERA_WRITE) ||
+			    (usage & GRALLOC_USAGE_PRIVATE_2))
 				ret = ion_alloc(m->ion_client, size, 0, ION_HEAP_TYPE_DMA_MASK, 0, &(ion_hnd));
 			else
 				ret = ion_alloc(m->ion_client, size, 0, ION_HEAP_SYSTEM_MASK, 0, &(ion_hnd));
@@ -165,7 +166,8 @@ static int gralloc_alloc_buffer(alloc_device_t *dev, size_t size, int usage, buf
 		}
 		else
 		{
-			if ((usage & GRALLOC_USAGE_HW_FB) || (usage & GRALLOC_USAGE_HW_CAMERA_WRITE))
+			if ((usage & GRALLOC_USAGE_HW_FB) || (usage & GRALLOC_USAGE_HW_CAMERA_WRITE) ||
+			    (usage & GRALLOC_USAGE_PRIVATE_2))
 				ret = ion_alloc_fd(m->ion_client, size, 0, 1 << m->cma_heap_id, 0, &(shared_fd));
 			else
 				ret = ion_alloc_fd(m->ion_client, size, 0, 1 << m->system_heap_id, 0, &(shared_fd));
@@ -429,6 +431,7 @@ static int alloc_device_alloc(alloc_device_t *dev, int w, int h, int format, int
 	size_t size;
 	size_t stride;
 	int bpp = 1;
+	int aligned_height = h;
 
 	/* Pick the right concrete pixel format given the endpoints as encoded in
 	 * the usage bits. Every end-point pair needs explicit listing here.
@@ -471,8 +474,24 @@ static int alloc_device_alloc(alloc_device_t *dev, int w, int h, int format, int
 
 			/* we treat HAL_PIXEL_FORMAT_YCbCr_420_888 as NV12 */
 			case HAL_PIXEL_FORMAT_YCbCr_420_888:
-				stride = GRALLOC_ALIGN(w, 16);
-				size = GRALLOC_ALIGN(h, 16) * (stride + GRALLOC_ALIGN(stride / 2, 16));
+				/* GRALLOC_USAGE_PRIVATE_2 is used for NV12 video output buffers
+				 * decoded by VCU. stride (width-stride) should be 256 aligned.
+				 * height/nSliceHeight should be 64 aligned.
+				 */
+				if (usage & GRALLOC_USAGE_PRIVATE_2)
+				{
+					stride = GRALLOC_ALIGN(w, 256);
+					aligned_height = GRALLOC_ALIGN(h, 64);
+
+					/* size calculation should match VCU OMX IL */
+					size = aligned_height * stride + 		/* Y plane */
+						   aligned_height * (stride / 2);	/* CbCr planes */
+				}
+				else
+				{
+					stride = GRALLOC_ALIGN(w, 16);
+					size = GRALLOC_ALIGN(h, 16) * (stride + GRALLOC_ALIGN(stride / 2, 16));
+				}
 				break;
 
 #ifdef SUPPORT_LEGACY_FORMAT
@@ -586,7 +605,13 @@ static int alloc_device_alloc(alloc_device_t *dev, int w, int h, int format, int
 	hnd->height = h;
 	hnd->format = format;
 	hnd->stride = stride;
-	hnd->byte_stride = GRALLOC_ALIGN(w * bpp, 64);
+	hnd->aligned_height = aligned_height;
+
+	/* GRALLOC_USAGE_PRIVATE_2 is used for VCU video output buffers */
+	if (usage & GRALLOC_USAGE_PRIVATE_2)
+		hnd->byte_stride = GRALLOC_ALIGN(w * bpp, 256);
+	else
+		hnd->byte_stride = GRALLOC_ALIGN(w * bpp, 64);
 	*pStride = stride;
 	return 0;
 }
