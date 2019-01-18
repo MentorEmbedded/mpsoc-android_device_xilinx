@@ -378,10 +378,19 @@ static int gralloc_lock_ycbcr(gralloc_module_t const *module, buffer_handle_t ha
 			 * same as legacy HAL_PIXEL_FORMAT_YCbCr_420_SP used by DDK
 			 */
 			case HAL_PIXEL_FORMAT_YCbCr_420_888:
-				ystride = cstride = GRALLOC_ALIGN(hnd->width, 16);
 				ycbcr->y  = (void *)hnd->base;
-				ycbcr->cb = (void *)((unsigned char *)hnd->base + ystride * hnd->height);
-				ycbcr->cr = (void *)((unsigned char *)hnd->base + ystride * hnd->height + 1);
+				if (usage & GRALLOC_USAGE_PRIVATE_2)
+				{
+					ystride = cstride = GRALLOC_ALIGN(hnd->width, 256);
+					ycbcr->cb = (void *)((unsigned char *)hnd->base + ystride * hnd->aligned_height);
+					ycbcr->cr = (void *)((unsigned char *)hnd->base + ystride * hnd->aligned_height + 1);
+				}
+				else
+				{
+					ystride = cstride = GRALLOC_ALIGN(hnd->width, 16);
+					ycbcr->cb = (void *)((unsigned char *)hnd->base + ystride * hnd->height);
+					ycbcr->cr = (void *)((unsigned char *)hnd->base + ystride * hnd->height + 1);
+				}
 				ycbcr->ystride = ystride;
 				ycbcr->cstride = cstride;
 				ycbcr->chroma_step = 2;
