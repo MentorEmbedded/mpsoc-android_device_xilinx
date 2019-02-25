@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define LOG_NDEBUG 0
+// #define LOG_NDEBUG 1
 #define LOG_TAG "V4L2XilinxHdmiWrapper"
 
 #include "v4l2_xilinx_hdmi_wrapper.h"
@@ -423,6 +423,7 @@ int V4L2XilinxHdmiWrapper::SetFormat(const StreamFormat& desired_format,
 
 int V4L2XilinxHdmiWrapper::EnqueueRequest(
     std::shared_ptr<default_camera_hal::CaptureRequest> request) {
+  HAL_LOG_ENTER();
   if (!format_) {
     HAL_LOGE("Stream format must be set before enqueuing buffers.");
     return -ENODEV;
@@ -477,7 +478,13 @@ int V4L2XilinxHdmiWrapper::EnqueueRequest(
 
     request_context = &buffers_[index];
     
-    if (output_format == *format_) {
+    // In current design, we can only enqueue 1 buffer per request.
+    // If we have more than one output buffer, enqueue intermediate
+    // buffer and then copy/convert it to output buffers
+    if (request->output_buffers.size() > 1) {
+      request_context->conversion_needed = true;
+      device_buffer.m.fd = request_context->camera_buffer->GetFd();
+    } else if (output_format == *format_) {
       // output buffer has the same format
       // no conversion needed
       request_context->conversion_needed = false;
@@ -528,41 +535,57 @@ int V4L2XilinxHdmiWrapper::DequeueRequest(std::shared_ptr<CaptureRequest>* reque
   std::lock_guard<std::mutex> guard(buffer_queue_lock_);
 
   XilinxRequestContext* request_context = &buffers_[buffer.index];
-  const camera3_stream_buffer_t* stream_buffer =
-      &request_context->request->output_buffers[0];
-  uint32_t fourcc =
-      StreamFormat::HalToV4L2PixelFormat(stream_buffer->stream->format);
   if (request) {
     *request = request_context->request;
   }
 
   if (request_context->conversion_needed) {
-    //we need to mmap both camera and output buffers here and perform conversion
-
-    // Note that the device buffer length is passed to the output frame. If the
-    // GrallocFrameBuffer does not have support for the transformation to
-    // |fourcc|, it will assume that the amount of data to lock is based on
-    // |buffer.length|, otherwise it will use the ImageProcessor::ConvertedSize.
-    arc::GrallocFrameBuffer output_frame(
-        *stream_buffer->buffer, stream_buffer->stream->width,
-        stream_buffer->stream->height, fourcc, buffer.length,
-        stream_buffer->stream->usage);
-    res = output_frame.Map();
-    if (res) {
-      HAL_LOGE("Failed to map output frame.");
-      request_context->request.reset();
-      return -EINVAL;
-    }
-
+    // we need to mmap both camera and output buffers here and perform conversion
     if (request_context->camera_buffer->Map()) {
       HAL_LOGE("Failed to map camera frame.");
       request_context->request.reset();
       return -EINVAL;      
     }
-    // Perform the format conversion.
-    arc::CachedFrame cached_frame;
-    cached_frame.SetSource(request_context->camera_buffer.get(), 0);
-    cached_frame.Convert(request_context->request->settings, &output_frame);
+    for (size_t buf_idx = 0;
+         buf_idx < request_context->request->output_buffers.size();
+         ++buf_idx) {
+      const camera3_stream_buffer_t* stream_buffer =
+        &request_context->request->output_buffers[buf_idx];
+      uint32_t fourcc =
+        StreamFormat::HalToV4L2PixelFormat(stream_buffer->stream->format);
+
+      // Note that the device buffer length is passed to the output frame. If the
+      // GrallocFrameBuffer does not have support for the transformation to
+      // |fourcc|, it will assume that the amount of data to lock is based on
+      // |buffer.length|, otherwise it will use the ImageProcessor::ConvertedSize.
+      arc::GrallocFrameBuffer output_frame(
+          *stream_buffer->buffer, stream_buffer->stream->width,
+          stream_buffer->stream->height, fourcc, buffer.length,
+          stream_buffer->stream->usage);
+      res = output_frame.Map();
+      if (res) {
+        HAL_LOGE("Failed to map output frame.");
+        request_context->camera_buffer->Unmap();
+        request_context->request.reset();
+        request_context->active = false;
+        return -EINVAL;
+      }
+
+      if (request_context->camera_buffer->GetFourcc() == fourcc &&
+          request_context->camera_buffer->GetWidth() ==
+              stream_buffer->stream->width &&
+          request_context->camera_buffer->GetHeight() ==
+              stream_buffer->stream->height) {
+        // If no format conversion needs to be applied, directly copy the data over.
+        memcpy(output_frame.GetData(), request_context->camera_buffer->GetData(),
+               request_context->camera_buffer->GetDataSize());
+      } else {
+        // Perform the format conversion.
+        arc::CachedFrame cached_frame;
+        cached_frame.SetSource(request_context->camera_buffer.get(), 0);
+        cached_frame.Convert(request_context->request->settings, &output_frame);
+      }
+    }
     request_context->camera_buffer->Unmap();
   }
 
