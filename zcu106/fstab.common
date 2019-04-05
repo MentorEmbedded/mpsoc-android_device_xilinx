@@ -6,3 +6,4 @@
 /dev/block/mmcblk0p6    /cache              ext4      discard,noauto_da_alloc,data=ordered,user_xattr,discard,barrier=1    wait
 /dev/block/mmcblk0p5    /system             ext4      ro                                                    wait
 /dev/block/mmcblk0p4    /data               ext4      discard,noauto_da_alloc,data=ordered,user_xattr,discard,barrier=1    wait
+/devices/platform/amba/ff9d0000.usb0/fe200000.dwc3/xhci-hcd.*.auto/usb*		auto 		auto 	defaults	voldmanaged=usb:auto
