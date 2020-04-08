@@ -31,5 +31,11 @@
 #define AERR_IF( eq, fmt, args...) if ( (eq) ) AERR( fmt, args )
 #endif
 
+#define GRALLOC_ALIGN( value, base ) (((value) + ((base) - 1)) & ~((base) - 1))
+
+#define GRALLOC_ALIGN_BASE_16   16
+#define GRALLOC_ALIGN_BASE_64   64
+#define GRALLOC_ALIGN_BASE_128  128
+
 // Create an alloc device
 int alloc_device_open(hw_module_t const *module, const char *name, hw_device_t **device);

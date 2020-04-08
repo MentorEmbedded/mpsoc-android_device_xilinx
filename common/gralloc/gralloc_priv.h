@@ -79,6 +79,8 @@ struct fb_dmabuf_export
 	__u32 fd;
 	__u32 flags;
 };
+
+/* Un-comment this line to use dma_buf framebuffer */
 /*#define FBIOGET_DMABUF    _IOR('F', 0x21, struct fb_dmabuf_export)*/
 
 #if PLATFORM_SDK_VERSION >= 21
@@ -129,8 +131,10 @@ struct private_module_t
 	pthread_mutex_t lock;
 	buffer_handle_t currentBuffer;
 	int ion_client;
+
 	int system_heap_id;
 	int cma_heap_id;
+	/*gralloc_legacy_ion is used when LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)*/
 	bool gralloc_legacy_ion;
 
 	struct fb_var_screeninfo info;
@@ -206,7 +210,11 @@ struct private_handle_t
 	// Following members is for framebuffer only
 	int     fd; //Shallow copy, DO NOT duplicate
 	int     offset;
-
+	union
+	{
+		void *fb_paddr;
+		uint64_t fb_paddr_padding;
+	};
 	int	byte_stride; // width-stride in bytes
 
 	// height with required alignment, used for VCU video buffers.
@@ -247,7 +255,8 @@ struct private_handle_t
 		ump_id((int)secure_id),
 		ump_mem_handle((int)handle),
 		fd(0),
-		offset(0)
+		offset(0),
+		fb_paddr(NULL)
 #if GRALLOC_ARM_DMA_BUF_MODULE
 		,
 		ion_hnd(ION_INVALID_HANDLE)
@@ -282,6 +291,7 @@ struct private_handle_t
 #endif
 		fd(0),
 		offset(0),
+		fb_paddr(NULL),
 		ion_hnd(ION_INVALID_HANDLE)
 
 	{
@@ -292,7 +302,7 @@ struct private_handle_t
 
 #endif
 
-	private_handle_t(int flags, int usage, int size, void *base, int lock_state, int fb_file, int fb_offset):
+	private_handle_t(int flags, int usage, int size, void *base, int lock_state, int fb_file, int fb_offset, void *fb_paddr):
 #if GRALLOC_ARM_DMA_BUF_MODULE
 		share_fd(-1),
 #endif
@@ -314,7 +324,8 @@ struct private_handle_t
 		ump_mem_handle((int)UMP_INVALID_MEMORY_HANDLE),
 #endif
 		fd(fb_file),
-		offset(fb_offset)
+		offset(fb_offset),
+		fb_paddr(fb_paddr)
 #if GRALLOC_ARM_DMA_BUF_MODULE
 		,
 		ion_hnd(ION_INVALID_HANDLE)
@@ -340,7 +351,7 @@ struct private_handle_t
 	{
 		const private_handle_t *hnd = (const private_handle_t *)h;
 
-		if (!h || h->version != sizeof(native_handle) || hnd->magic != sMagic)
+		if (!hnd || hnd->version != sizeof(native_handle) || hnd->magic != sMagic)
 		{
 			return -EINVAL;
 		}
@@ -357,7 +368,7 @@ struct private_handle_t
 
 #endif
 
-		if (h->numFds != numFds || h->numInts != numInts)
+		if (hnd->numFds != numFds || hnd->numInts != numInts)
 		{
 			return -EINVAL;
 		}

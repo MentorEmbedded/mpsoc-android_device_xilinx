@@ -23,7 +23,7 @@
 #include <linux/fb.h>
 #include <stdlib.h>
 
-#include <cutils/log.h>
+#include <log/log.h>
 #include <cutils/atomic.h>
 #include <hardware/hardware.h>
 #include <hardware/gralloc.h>
@@ -86,10 +86,9 @@ static int fb_post(struct framebuffer_device_t *dev, buffer_handle_t buffer)
 		m->base.lock(&m->base, buffer, private_module_t::PRIV_USAGE_LOCKED_FOR_POST,
 		             0, 0, m->info.xres, m->info.yres, NULL);
 
-		const size_t offset = (uintptr_t)hnd->base - (uintptr_t)m->framebuffer->base;
 		int interrupt;
 		m->info.activate = FB_ACTIVATE_VBL;
-		m->info.yoffset = offset / m->finfo.line_length;
+		m->info.yoffset = hnd->offset / m->finfo.line_length;
 
 #ifdef STANDARD_LINUX_SCREEN
 #define FBIO_WAITFORVSYNC       _IOW('F', 0x20, __u32)
@@ -384,7 +383,11 @@ int init_frame_buffer_locked(struct private_module_t *module)
 
 	// Create a "fake" buffer object for the entire frame buffer memory, and store it in the module
 	module->framebuffer = new private_handle_t(private_handle_t::PRIV_FLAGS_FRAMEBUFFER, 0, fbSize, vaddr,
-	        0, fd, 0);
+	        0, fd, 0, (void *)finfo.smem_start);
+
+	/* There is no share_fd in framebuffer handle, correct numFds/numInts */
+	module->framebuffer->numFds--;
+	module->framebuffer->numInts++;
 
 	module->numBuffers = info.yres_virtual / info.yres;
 	module->bufferMask = 0;
