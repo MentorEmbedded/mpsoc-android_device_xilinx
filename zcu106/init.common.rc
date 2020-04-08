@@ -33,6 +33,8 @@ on post-fs
     setprop ro.hardware.hwcomposer drm
     setprop hwc.drm.use_framebuffer_target 1
     setprop hwc.drm.use_overlay_planes 0
+    setprop hwc.drm.max_width 1920
+    setprop hwc.drm.max_height 1080
 
     chown graphics graphics /sys/kernel/debug/sync/sw_sync
     chmod 777 /sys/kernel/debug/sync/sw_sync
