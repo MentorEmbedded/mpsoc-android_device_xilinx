@@ -21,7 +21,7 @@ LOCAL_PATH := $(call my-dir)
 
 include $(CLEAR_VARS)
 
-SHARED_MEM_LIBS := libion libhardware
+SHARED_MEM_LIBS := libion libhardware libsync
 LOCAL_SHARED_LIBRARIES := liblog libcutils libGLESv1_CM $(SHARED_MEM_LIBS)
 LOCAL_C_INCLUDES := system/core/include/
 LOCAL_CFLAGS := -DLOG_TAG=\"gralloc\" -DGRALLOC_32_BITS \
@@ -39,6 +39,8 @@ LOCAL_SRC_FILES := \
 # Include libion's folder to have access to the header with the
 # new interface
 LOCAL_C_INCLUDES += system/core/libion
+
+LOCAL_C_INCLUDES += system/core/libsync/include
 
 LOCAL_MODULE := gralloc.$(TARGET_BOARD_PLATFORM)
 LOCAL_MODULE_RELATIVE_PATH := hw

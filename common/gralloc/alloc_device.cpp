@@ -26,6 +26,8 @@
 #include <hardware/hardware.h>
 #include <hardware/gralloc.h>
 
+#include <android/sync.h>
+
 #include <sys/ioctl.h>
 
 #include "alloc_device.h"
@@ -46,8 +48,6 @@
 
 #define ION_SYSTEM	(char*)"ion_system_heap"
 #define ION_CMA		(char*)"reserved"
-
-#define GRALLOC_ALIGN( value, base ) (((value) + ((base) - 1)) & ~((base) - 1))
 
 
 #if GRALLOC_SIMULATE_FAILURES

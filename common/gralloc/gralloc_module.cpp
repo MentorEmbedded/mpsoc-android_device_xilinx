@@ -19,10 +19,11 @@
 #include <errno.h>
 #include <pthread.h>
 
-#include <cutils/log.h>
+#include <log/log.h>
 #include <cutils/atomic.h>
 #include <hardware/hardware.h>
 #include <hardware/gralloc.h>
+#include <android/sync.h>
 
 #include "gralloc_priv.h"
 #include "alloc_device.h"
@@ -38,8 +39,6 @@ static int s_ump_is_open = 0;
 #include <ion/ion.h>
 #include <sys/mman.h>
 #endif
-
-#define GRALLOC_ALIGN( value, base ) (((value) + ((base) - 1)) & ~((base) - 1))
 
 static pthread_mutex_t s_map_lock = PTHREAD_MUTEX_INITIALIZER;
 
@@ -183,6 +182,7 @@ static int gralloc_register_buffer(gralloc_module_t const *module, buffer_handle
 
 		hnd->base = mappedAddress + hnd->offset;
 		hnd->lockState &= ~(private_handle_t::LOCK_STATE_UNREGISTERED);
+		hnd->lockState &= ~(private_handle_t::LOCK_STATE_WRITE);
 
 		pthread_mutex_unlock(&s_map_lock);
 		return 0;
@@ -363,11 +363,14 @@ static int gralloc_lock_ycbcr(gralloc_module_t const *module, buffer_handle_t ha
 				break;
 
 			case HAL_PIXEL_FORMAT_YV12:
-				ystride = GRALLOC_ALIGN(hnd->width, 16);
-				cstride = GRALLOC_ALIGN(hnd->width / 2, 16);
+				/* Here to keep consistency with YV12 alignment, define the ystride according to image height. */
+				ystride = GRALLOC_ALIGN(hnd->width, (hnd->height % 8 == 0) ? GRALLOC_ALIGN_BASE_16 :
+				                        ((hnd->height % 4 == 0) ? GRALLOC_ALIGN_BASE_64 : GRALLOC_ALIGN_BASE_128));
+				cstride = GRALLOC_ALIGN(ystride / 2, 16);
 				ycbcr->y  = (void *)hnd->base;
-				ycbcr->cr = (void *)((unsigned char *)hnd->base + ystride * hnd->height);
-				ycbcr->cb = (void *)((unsigned char *)hnd->base + ystride * hnd->height + cstride * hnd->height / 2);
+				/* the ystride calc is assuming the height can at least be divided by 2 */
+				ycbcr->cr = (void *)((unsigned char *)hnd->base + ystride * GRALLOC_ALIGN(hnd->height, 2));
+				ycbcr->cb = (void *)((unsigned char *)hnd->base + ystride * GRALLOC_ALIGN(hnd->height, 2) + cstride * hnd->height / 2);
 				ycbcr->ystride = ystride;
 				ycbcr->cstride = cstride;
 				ycbcr->chroma_step = 1;
@@ -464,6 +467,43 @@ static int gralloc_unlock(gralloc_module_t const *module, buffer_handle_t handle
 	return 0;
 }
 
+#if defined(GRALLOC_MODULE_API_VERSION_0_3)
+static int gralloc_lock_async(gralloc_module_t const *module, buffer_handle_t handle, int usage, int l, int t, int w, int h, void **vaddr, int fenceFD)
+{
+	if (fenceFD >= 0)
+	{
+		sync_wait(fenceFD, -1);
+		close(fenceFD);
+	}
+
+	return gralloc_lock(module, handle, usage, l, t, w, h, vaddr);
+}
+
+static int gralloc_unlock_async(gralloc_module_t const *module, buffer_handle_t handle, int *fenceFD)
+{
+	*fenceFD = -1;
+
+	if (gralloc_unlock(module, handle) < 0)
+	{
+		return -EINVAL;
+	}
+
+	return 0;
+
+}
+
+static int gralloc_lock_async_ycbcr(gralloc_module_t const *module, buffer_handle_t handle, int usage, int l, int t, int w, int h, struct android_ycbcr *ycbcr, int fenceFD)
+{
+	if (fenceFD >= 0)
+	{
+		sync_wait(fenceFD, -1);
+		close(fenceFD);
+	}
+
+	return gralloc_lock_ycbcr(module, handle, usage, l, t, w, h, ycbcr);
+}
+#endif
+
 // There is one global instance of the module
 
 static struct hw_module_methods_t gralloc_module_methods =
@@ -476,7 +516,11 @@ private_module_t::private_module_t()
 #define INIT_ZERO(obj) (memset(&(obj),0,sizeof((obj))))
 
 	base.common.tag = HARDWARE_MODULE_TAG;
-	base.common.version_major = 1;
+#if defined(GRALLOC_MODULE_API_VERSION_0_3)
+	base.common.version_major = GRALLOC_MODULE_API_VERSION_0_3;
+#else
+	base.common.version_major = GRALLOC_MODULE_API_VERSION_0_2;
+#endif
 	base.common.version_minor = 0;
 	base.common.id = GRALLOC_HARDWARE_MODULE_ID;
 	base.common.name = "Graphics Memory Allocator Module";
@@ -488,9 +532,14 @@ private_module_t::private_module_t()
 	base.registerBuffer = gralloc_register_buffer;
 	base.unregisterBuffer = gralloc_unregister_buffer;
 	base.lock = gralloc_lock;
-	base.lock_ycbcr = gralloc_lock_ycbcr;
 	base.unlock = gralloc_unlock;
 	base.perform = NULL;
+	base.lock_ycbcr = gralloc_lock_ycbcr;
+#if defined(GRALLOC_MODULE_API_VERSION_0_3)
+	base.lockAsync = gralloc_lock_async;
+	base.unlockAsync = gralloc_unlock_async;
+	base.lockAsync_ycbcr = gralloc_lock_async_ycbcr;
+#endif
 	INIT_ZERO(base.reserved_proc);
 
 	framebuffer = NULL;
