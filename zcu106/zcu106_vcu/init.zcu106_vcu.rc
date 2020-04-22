@@ -67,7 +67,7 @@ on post-fs
     setprop xlnx.v4l2.hdmi.rx_dts_name      a0000000.v_hdmi_rx_ss
 
     # set properties for HDMI audio
-    setprop xlnx.audio.card 1
+    setprop xlnx.audio.card 2
     setprop xlnx.audio.port 0
     setprop xlnx.audio.use_24bit 1
 
