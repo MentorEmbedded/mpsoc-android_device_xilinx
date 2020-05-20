@@ -43,7 +43,7 @@
 #include <gralloc_priv.h>
 
 // FIX ME: Xilinx's specific definition is not in kernel-headers yet
-#define MEDIA_BUS_FMT_VYYUYY8_1X24    0x202c
+#define MEDIA_BUS_FMT_VYYUYY8_1X24    0x2100
 
 #define ION_CMA_HEAP   (char*)"reserved"
 namespace v4l2_camera_hal {
@@ -90,6 +90,7 @@ int V4L2XilinxHdmiWrapper::FindSubdevices() {
   std::lock_guard<std::mutex> lock(subdevs_lock_);
   bool found_scaler = false;
   bool found_rx = false;
+  bool found_scd = false;
 
   // name of main hdmi capture device in device tree
   char hdmi_device_name[PROPERTY_VALUE_MAX];
@@ -100,9 +101,13 @@ int V4L2XilinxHdmiWrapper::FindSubdevices() {
   // name of hdmi_rx subdevice
   char rx_device_name[PROPERTY_VALUE_MAX];
 
+  // name of SCD subdevice
+  char scd_device_name[PROPERTY_VALUE_MAX];
+
   property_get("xlnx.v4l2.hdmi.main_dts_name", hdmi_device_name, "vcap_hdmi");
   property_get("xlnx.v4l2.hdmi.scaler_dts_name", scaler_device_name, "a0080000.v_proc_ss");
   property_get("xlnx.v4l2.hdmi.rx_dts_name", rx_device_name, "a0000000.v_hdmi_rx_ss");
+  property_get("xlnx.v4l2.hdmi.scd_dts_name", scd_device_name, "xlnx-scdchan.0");
 
   std::string sysfs_path = "/sys/devices/platform/amba_pl@0/amba_pl@0:";
   sysfs_path += hdmi_device_name;
@@ -144,13 +149,19 @@ int V4L2XilinxHdmiWrapper::FindSubdevices() {
           hdmi_rx_dev_path_ += ent->d_name;
           continue;
         }
-        if (found_scaler && found_rx)
+        if(!found_scd && (strncmp(scd_device_name, tmp_name, strlen(scd_device_name)) == 0)){
+          found_scd = true;
+          scd_dev_path_ = "/dev/";
+          scd_dev_path_ += ent->d_name;
+          continue;
+        }
+        if (found_scaler && found_rx && found_scd)
           break;
       }
     }
   }
 
-  if (found_rx && found_scaler)
+  if (found_rx && found_scaler && found_scd)
     return 0;
   return -ENODEV;
 }
@@ -210,6 +221,10 @@ int V4L2XilinxHdmiWrapper::InitScalerSource() {
   return 0;
 }
 
+int V4L2XilinxHdmiWrapper::InitSCD() {
+  return 0;
+}
+
 int V4L2XilinxHdmiWrapper::Connect() {
   HAL_LOG_ENTER();
   // First search for scaler and HDMI RX subdevices
@@ -224,6 +239,12 @@ int V4L2XilinxHdmiWrapper::Connect() {
   ret = InitScalerSource();
   if (ret) {
     HAL_LOGE("Failed to initialize video scaler");
+    return ret;
+  }
+
+  ret = InitSCD();
+  if (ret) {
+    HAL_LOGE("Failed to initialize SCD");
     return ret;
   }
 
@@ -307,11 +328,26 @@ uint32_t V4L2XilinxHdmiWrapper::V4L2ToScalerMbusFormat(uint32_t v4l2_pixel_forma
   return 0;
 }
 
+int V4L2XilinxHdmiWrapper::SetScalerOutFormat(uint32_t width, uint32_t height, uint32_t fmt_code) {
+  //scaler source/out pad is pad 1
+  return SetSubdevFormat(scaler_dev_path_, width, height, fmt_code, 1);
+}
+
+int V4L2XilinxHdmiWrapper::SetScdInFormat(uint32_t width, uint32_t height, uint32_t fmt_code) {
+  //SCD sink/in pad is pad 0
+  return SetSubdevFormat(scd_dev_path_, width, height, fmt_code, 0);
+}
+
+int V4L2XilinxHdmiWrapper::SetScdOutFormat(uint32_t width, uint32_t height, uint32_t fmt_code) {
+  //SCD source/out pad is pad 1
+  return SetSubdevFormat(scd_dev_path_, width, height, fmt_code, 1);
+}
+
 // Set format of scaler's source pad.
 // Scaler's source pad is connected to the capture node /dev/videoN.
 // This function converts specified StreamFormat to the matching
 // MEDIA_BUS_FMT_
-int V4L2XilinxHdmiWrapper::SetScalerFormat(const StreamFormat& format) {
+int V4L2XilinxHdmiWrapper::SetPipelineFormat(const StreamFormat& format) {
   // first check specified format
   uint32_t mbus_fmt_code = V4L2ToScalerMbusFormat(format.v4l2_pixel_format());
   if (mbus_fmt_code == 0){
@@ -321,28 +357,28 @@ int V4L2XilinxHdmiWrapper::SetScalerFormat(const StreamFormat& format) {
 
   // now we should lock
   std::lock_guard<std::mutex> lock(subdevs_lock_);
-  // Open and scaler subdevice
-  int fd = open(scaler_dev_path_.c_str(), O_RDWR);
-  if (fd < 0){
-      HAL_LOGE("Failed to open scaler subdevice %s", scaler_dev_path_.c_str());
-      return -ENODEV;
+
+  uint32_t width = format.width();
+  uint32_t height = format.height();
+
+  /* Set Scaler Out pad format */
+  int ret = SetScalerOutFormat(width, height, mbus_fmt_code);
+  if (ret) {
+    HAL_LOGE("Failed to set scaler out format: %s", strerror(errno));
+    return ret;
   }
-  android::base::unique_fd scaler_fd(fd);
 
-  // set format
-  struct v4l2_subdev_format fmt_req;
-  memset(&fmt_req, 0, sizeof(fmt_req));
-  //scaler source pad is pad 1
-  fmt_req.pad = 1;
-  fmt_req.which = V4L2_SUBDEV_FORMAT_ACTIVE;
-  fmt_req.format.width = format.width();
-  fmt_req.format.height = format.height();
-  fmt_req.format.code = mbus_fmt_code;
-  fmt_req.format.colorspace = V4L2_COLORSPACE_DEFAULT;
+  /* Set SCD In pad format */
+  ret = SetScdInFormat(width, height, mbus_fmt_code);
+  if (ret) {
+    HAL_LOGE("Failed to set scaler out format: %s", strerror(errno));
+    return ret;
+  }
 
-  int ret = ioctl(scaler_fd.get(), VIDIOC_SUBDEV_S_FMT, &fmt_req);
-  if (ret < 0){
-    HAL_LOGE("Failed to set scaler source format");
+  /* Set SCD Out pad format */
+  ret = SetScdOutFormat(width, height, mbus_fmt_code);
+  if (ret) {
+    HAL_LOGE("Failed to set scaler out format: %s", strerror(errno));
     return ret;
   }
 
@@ -387,7 +423,7 @@ int V4L2XilinxHdmiWrapper::SetFormat(const StreamFormat& desired_format,
   v4l2_format new_format;
   const StreamFormat resolved_format(format);
 
-  int res = SetScalerFormat(resolved_format);
+  int res = SetPipelineFormat(resolved_format);
   if (res){
     HAL_LOGE("Failed to set scaler source format: %s", strerror(errno));
     return res;

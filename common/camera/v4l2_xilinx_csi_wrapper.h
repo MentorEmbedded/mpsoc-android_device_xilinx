@@ -91,10 +91,6 @@ class V4L2XilinxCsiWrapper: public V4L2Wrapper {
   // locks on subdevs_lock_
   int SetPipelineFormat(const StreamFormat& format);
 
-  // set various subdev controls
-  // doesn't provide any locking
-  // must be called with subdevs_lock_ held
-  int SubdevSetCtrl(const std::string subdev_path, uint32_t id, uint32_t value);
   int CsiSetActLanes(uint32_t lanes);
   int GammaSetBlueCorrection(uint32_t blue);
   int GammaSetGreenCorrection(uint32_t green);
@@ -123,18 +119,11 @@ class V4L2XilinxCsiWrapper: public V4L2Wrapper {
   int SetCscOutFormat(uint32_t width, uint32_t height, uint32_t fmt_code);
   int SetScalerInFormat(uint32_t width, uint32_t height, uint32_t fmt_code);
   int SetScalerOutFormat(uint32_t width, uint32_t height, uint32_t fmt_code);
-  int SetSubdevFormat(const std::string dev_path,
-  uint32_t width, uint32_t height, uint32_t fmt_code, uint32_t pad);
 
   // Convert V4L2 fourcc to MEDIA_BUS_FMT_
   // Should be aligned with xilinx_vip.c driver
   // returns 0 on error
   static uint32_t V4L2ToScalerMbusFormat(uint32_t v4l2_pixel_format);
-
-  // Perform ioctl call on  the specifed v4l subdevice
-  // should be called with subdevs_lock_ held
-  template <typename T>
-  int SubdevIoctl(const std::string subdev_path, int request, T data);
 
   class XilinxRequestContext {
    public:
