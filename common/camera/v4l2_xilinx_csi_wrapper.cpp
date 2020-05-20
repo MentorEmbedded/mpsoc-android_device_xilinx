@@ -45,7 +45,7 @@
 #include "xilinx-v4l2-controls.h"
 
 // FIX ME: Xilinx's specific definition is not in kernel-headers yet
-#define MEDIA_BUS_FMT_VYYUYY8_1X24    0x202c
+#define MEDIA_BUS_FMT_VYYUYY8_1X24    0x2100
 
 // FIX ME: using hardcoded values from VCU TRD 2018.1 for now
 // currently HAL is using QueryControl/SetControl/GetControl directly
@@ -229,43 +229,6 @@ int V4L2XilinxCsiWrapper::FindSubdevices() {
       found_dmsc && found_sensor && found_gamma)
     return 0;
   return -ENODEV;
-}
-
-template <typename T>
-int V4L2XilinxCsiWrapper::SubdevIoctl(const std::string subdev_path, int request, T data) {
-
-  int fd = open(subdev_path.c_str(), O_RDWR);
-  if (fd < 0){
-      HAL_LOGE("Failed to open V4L subdevice %s", subdev_path.c_str());
-      return -ENODEV;
-  }
-  android::base::unique_fd dev_fd(fd);
-  return TEMP_FAILURE_RETRY(ioctl(dev_fd.get(), request, data));
-}
-
-int V4L2XilinxCsiWrapper::SubdevSetCtrl(const std::string subdev_path, uint32_t id, uint32_t value) {
-  int ret;
-  struct v4l2_queryctrl query;
-  struct v4l2_control ctrl;
-
-  memset(&query, 0, sizeof(query));
-  query.id = id;
-  ret = SubdevIoctl(subdev_path, VIDIOC_QUERYCTRL, &query);
-  if (ret)
-    return ret;
-
-  if (query.flags & V4L2_CTRL_FLAG_DISABLED) {
-    HAL_LOGW("V4L2_CID_%d is disabled\n", id);
-  } else {
-    memset(&ctrl, 0, sizeof(ctrl));
-    ctrl.id = id;
-    ctrl.value = value;
-    ret = SubdevIoctl(subdev_path, VIDIOC_S_CTRL, &ctrl);
-    if (ret)
-      return ret;
-  }
-  return 0;
-
 }
 
 int V4L2XilinxCsiWrapper::CsiSetActLanes(uint32_t lanes) {
@@ -520,29 +483,6 @@ uint32_t V4L2XilinxCsiWrapper::V4L2ToScalerMbusFormat(uint32_t v4l2_pixel_format
       // Unsupported format
       HAL_LOGV("v4l2 pixel format %u is not supported by scaler", v4l2_pixel_format);
       break;
-  }
-  return 0;
-}
-
-int V4L2XilinxCsiWrapper::SetSubdevFormat(const std::string dev_path,
-  uint32_t width, uint32_t height, uint32_t fmt_code, uint32_t pad) {
-  int ret;
-
-  struct v4l2_subdev_format fmt_req;
-  memset(&fmt_req, 0, sizeof(fmt_req));
-
-  fmt_req.pad = pad;
-  fmt_req.which = V4L2_SUBDEV_FORMAT_ACTIVE;
-  fmt_req.format.width = width;
-  fmt_req.format.height = height;
-  fmt_req.format.code = fmt_code;
-  fmt_req.format.colorspace = V4L2_COLORSPACE_DEFAULT;
-  fmt_req.format.field = V4L2_FIELD_NONE;
-
-  ret = SubdevIoctl(dev_path, VIDIOC_SUBDEV_S_FMT, &fmt_req);
-  if (ret < 0) {
-    HAL_LOGE("Failed to set subdevice format: %s", strerror(errno));
-    return ret;
   }
   return 0;
 }

@@ -30,6 +30,7 @@
 
 #include <fcntl.h>
 #include <linux/videodev2.h>
+#include <linux/v4l2-subdev.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
@@ -483,6 +484,53 @@ int V4L2Wrapper::GetFormatFrameDurationRange(
   }
   (*duration_range)[0] = min;
   (*duration_range)[1] = max;
+  return 0;
+}
+
+int V4L2Wrapper::SubdevSetCtrl(const std::string subdev_path, uint32_t id, uint32_t value) {
+  int ret;
+  struct v4l2_queryctrl query;
+  struct v4l2_control ctrl;
+
+  memset(&query, 0, sizeof(query));
+  query.id = id;
+  ret = SubdevIoctl(subdev_path, VIDIOC_QUERYCTRL, &query);
+  if (ret)
+    return ret;
+
+  if (query.flags & V4L2_CTRL_FLAG_DISABLED) {
+    HAL_LOGW("V4L2_CID_%d is disabled\n", id);
+  } else {
+    memset(&ctrl, 0, sizeof(ctrl));
+    ctrl.id = id;
+    ctrl.value = value;
+    ret = SubdevIoctl(subdev_path, VIDIOC_S_CTRL, &ctrl);
+    if (ret)
+      return ret;
+  }
+  return 0;
+}
+
+int V4L2Wrapper::SetSubdevFormat(const std::string dev_path,
+  uint32_t width, uint32_t height, uint32_t fmt_code, uint32_t pad) {
+  int ret;
+
+  struct v4l2_subdev_format fmt_req;
+  memset(&fmt_req, 0, sizeof(fmt_req));
+
+  fmt_req.pad = pad;
+  fmt_req.which = V4L2_SUBDEV_FORMAT_ACTIVE;
+  fmt_req.format.width = width;
+  fmt_req.format.height = height;
+  fmt_req.format.code = fmt_code;
+  fmt_req.format.colorspace = V4L2_COLORSPACE_DEFAULT;
+  fmt_req.format.field = V4L2_FIELD_NONE;
+
+  ret = SubdevIoctl(dev_path, VIDIOC_SUBDEV_S_FMT, &fmt_req);
+  if (ret < 0) {
+    HAL_LOGE("Failed to set subdevice format: %s", strerror(errno));
+    return ret;
+  }
   return 0;
 }
 

@@ -112,6 +112,22 @@ class V4L2Wrapper {
     return TEMP_FAILURE_RETRY(ioctl(device_fd_.get(), request, data));
   }
 
+  template <typename T>
+  int SubdevIoctl(const std::string subdev_path, int request, T data) {
+
+    int fd = open(subdev_path.c_str(), O_RDWR);
+    if (fd < 0){
+        HAL_LOGE("Failed to open V4L subdevice %s", subdev_path.c_str());
+        return -ENODEV;
+    }
+    android::base::unique_fd dev_fd(fd);
+    return TEMP_FAILURE_RETRY(ioctl(dev_fd.get(), request, data));
+  }
+
+  int SubdevSetCtrl(const std::string subdev_path, uint32_t id, uint32_t value);
+  int SetSubdevFormat(const std::string dev_path,
+    uint32_t width, uint32_t height, uint32_t fmt_code, uint32_t pad);
+
   // Request/release userspace buffer mode via VIDIOC_REQBUFS.
   virtual int RequestBuffers(uint32_t num_buffers) = 0;
 

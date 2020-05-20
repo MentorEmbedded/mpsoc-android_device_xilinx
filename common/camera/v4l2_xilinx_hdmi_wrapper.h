@@ -81,11 +81,17 @@ class V4L2XilinxHdmiWrapper: public V4L2Wrapper {
   // Set scaler's source pad params accordingly
   int InitScalerSource();
 
+  int InitSCD();
+
   // Set format of scaler's source pad.
   // Scaler's source pad is connected to the capture node /dev/videoN.
-  // This function converts specified StreamFormat to the matching
-  // MEDIA_BUS_FMT_
-  int SetScalerFormat(const StreamFormat& format);
+  int SetScalerOutFormat(uint32_t width, uint32_t height, uint32_t fmt_code);
+
+  int SetScdInFormat(uint32_t width, uint32_t height, uint32_t fmt_code);
+
+  int SetScdOutFormat(uint32_t width, uint32_t height, uint32_t fmt_code);
+
+  int SetPipelineFormat(const StreamFormat& format);
 
   // Convert V4L2 fourcc to MEDIA_BUS_FMT_
   // Should be aligned with xilinx_vip.c driver
@@ -121,6 +127,7 @@ class V4L2XilinxHdmiWrapper: public V4L2Wrapper {
 
   std::string scaler_dev_path_;
   std::string hdmi_rx_dev_path_;
+  std::string scd_dev_path_;
   std::mutex subdevs_lock_;
 
   std::unique_ptr<V4L2IonAllocator> ion_alloc_;
