@@ -53,20 +53,16 @@ using arc::SupportedFormat;
 using arc::SupportedFormats;
 using default_camera_hal::CaptureRequest;
 
-// Xilinx scaler supports resolutions from 32x32 to 4096x4096
+// Xilinx SCD supports resolutions from 640x480 to 3840x2160
 // For now just declare that we support a set of standard sizes
 const int32_t kStandardSizes[][2] = {
-  {4096, 2160}, // 4KDCI (for USB camera)
   {3840, 2160}, // 4KUHD (for USB camera)
-  {3280, 2464}, // 8MP
   {2560, 1440}, // QHD
   {1920, 1080}, // HD1080
   {1640, 1232}, // 2MP
   {1280,  720}, // HD
   {1024,  768}, // XGA
   { 640,  480}, // VGA
-  { 320,  240}, // QVGA
-  { 176,  144}  // QCIF
 };
 
 V4L2XilinxHdmiWrapper* V4L2XilinxHdmiWrapper::NewV4L2XilinxHdmiWrapper(const std::string device_path) {
@@ -425,7 +421,7 @@ int V4L2XilinxHdmiWrapper::SetFormat(const StreamFormat& desired_format,
 
   int res = SetPipelineFormat(resolved_format);
   if (res){
-    HAL_LOGE("Failed to set scaler source format: %s", strerror(errno));
+    HAL_LOGE("Failed to set зшз source format: %s", strerror(errno));
     return res;
   }
 
@@ -597,7 +593,7 @@ int V4L2XilinxHdmiWrapper::DequeueRequest(std::shared_ptr<CaptureRequest>* reque
       arc::GrallocFrameBuffer output_frame(
           *stream_buffer->buffer, stream_buffer->stream->width,
           stream_buffer->stream->height, fourcc, buffer.length,
-          stream_buffer->stream->usage);
+          stream_buffer->stream->usage | GRALLOC_USAGE_SW_WRITE_OFTEN);
       res = output_frame.Map();
       if (res) {
         HAL_LOGE("Failed to map output frame.");
